@@ -128,12 +128,6 @@ impl Storage {
         Ok(())
     }
 
-    /// メタファイル（.toml）が存在するかどうかを確認
-    pub fn meta_exists(&self, hash: &str) -> bool {
-        let meta_path = self.overcode_dir.join(format!("{}.toml", hash));
-        meta_path.exists()
-    }
-
     /// インデックスファイル（index.toml）を読み込む
     /// パス→(mtime, size, hash)のマッピングを返す
     pub fn load_index(&self) -> anyhow::Result<HashMap<String, (u64, u64, String)>> {
