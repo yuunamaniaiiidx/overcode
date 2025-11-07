@@ -1,12 +1,11 @@
 use anyhow::{Context, Result};
 use std::path::PathBuf;
 
-/// コマンドライン引数からルートディレクトリを取得し、正規化する。
-/// 引数が指定されていない場合は、現在の作業ディレクトリを返す。
-pub fn get_root_dir() -> Result<PathBuf> {
-    let args: Vec<String> = std::env::args().collect();
-    let root_dir = if args.len() > 1 {
-        PathBuf::from(&args[1])
+/// ルートディレクトリを取得し、正規化する。
+/// 引数が指定されている場合はそのパスを使用し、指定されていない場合は現在の作業ディレクトリを返す。
+pub fn get_root_dir(dir: Option<&PathBuf>) -> Result<PathBuf> {
+    let root_dir = if let Some(d) = dir {
+        d.clone()
     } else {
         std::env::current_dir()?
     };

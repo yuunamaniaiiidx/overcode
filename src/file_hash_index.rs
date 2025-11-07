@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use std::time::UNIX_EPOCH;
+use crate::file_index::FileIndex;
 use crate::hash;
 use crate::scanner::FileEntry;
 
@@ -24,11 +25,11 @@ impl FileHashIndex {
     /// ファイルリストからFileHashIndexを作成する。
     pub fn from_files(
         files: &[FileEntry],
-        path_to_metadata: &HashMap<String, (u64, u64, String)>,
+        file_index: &FileIndex,
     ) -> Result<Self> {
         files.iter()
             .try_fold(Self::new(), |mut index, file_entry| {
-                index.process_file(file_entry, path_to_metadata)?;
+                index.process_file(file_entry, file_index)?;
                 Ok(index)
             })
     }
@@ -38,7 +39,7 @@ impl FileHashIndex {
     pub fn process_file(
         &mut self,
         file_entry: &FileEntry,
-        path_to_metadata: &HashMap<String, (u64, u64, String)>,
+        file_index: &FileIndex,
     ) -> Result<()> {
         let relative_path_str = file_entry.relative_path.to_string_lossy().to_string();
 
@@ -54,7 +55,7 @@ impl FileHashIndex {
 
         // 既存のメタデータと比較
         let should_calculate_hash = if let Some((cached_mtime, cached_size, cached_hash)) =
-            path_to_metadata.get(&relative_path_str)
+            file_index.get(&relative_path_str)
         {
             // mtimeとsizeが一致しない場合はハッシュを再計算
             if *cached_mtime != mtime || *cached_size != size {

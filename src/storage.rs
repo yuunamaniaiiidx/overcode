@@ -3,6 +3,7 @@ use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use toml::Value;
+use crate::file_index::FileIndex;
 
 #[derive(Debug, Clone)]
 pub struct SourceEntry {
@@ -128,12 +129,18 @@ impl Storage {
         Ok(())
     }
 
+    /// インデックスファイル（index.toml）が存在するかチェックする
+    pub fn index_exists(&self) -> bool {
+        let index_path = self.overcode_dir.join("index.toml");
+        index_path.exists()
+    }
+
     /// インデックスファイル（index.toml）を読み込む
     /// パス→(mtime, size, hash)のマッピングを返す
-    pub fn load_index(&self) -> anyhow::Result<HashMap<String, (u64, u64, String)>> {
+    pub fn load_index(&self) -> anyhow::Result<FileIndex> {
         let index_path = self.overcode_dir.join("index.toml");
         if !index_path.exists() {
-            return Ok(HashMap::new());
+            return Ok(FileIndex::new());
         }
 
         let content = fs::read_to_string(&index_path)?;
@@ -166,18 +173,18 @@ impl Storage {
             }
         }
 
-        Ok(index)
+        Ok(FileIndex::from_hashmap(index))
     }
 
     /// インデックスファイル（index.toml）を保存する
     /// パス→(mtime, size, hash)のマッピングを保存
-    pub fn save_index(&self, index: &HashMap<String, (u64, u64, String)>) -> anyhow::Result<()> {
+    pub fn save_index(&self, index: &FileIndex) -> anyhow::Result<()> {
         let index_path = self.overcode_dir.join("index.toml");
         
         let mut toml_value = toml::map::Map::new();
         let mut files_table = toml::map::Map::new();
 
-        for (path, (mtime, size, hash)) in index {
+        for (path, (mtime, size, hash)) in index.iter() {
             let mut file_table = toml::map::Map::new();
             file_table.insert("mtime".to_string(), Value::Integer(*mtime as i64));
             file_table.insert("size".to_string(), Value::Integer(*size as i64));

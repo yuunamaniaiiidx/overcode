@@ -3,6 +3,7 @@ use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::UNIX_EPOCH;
+use crate::file_index::FileIndex;
 use crate::hash;
 use crate::rust_parser;
 use crate::scanner::FileEntry;
@@ -38,7 +39,7 @@ pub fn extract_dependencies_with_hashes(
     file_path: &PathBuf,
     content: &[u8],
     root_dir: &Path,
-    path_to_metadata: &HashMap<String, (u64, u64, String)>,
+    file_index: &FileIndex,
 ) -> Vec<(String, String)> {
     let mut deps = Vec::new();
     
@@ -54,7 +55,7 @@ pub fn extract_dependencies_with_hashes(
         // 各依存先のハッシュを計算
         for dep_path in dep_paths {
             let dep_full_path = root_dir.join(&dep_path);
-            let dep_hash = if let Some((_, _, cached_hash)) = path_to_metadata.get(&dep_path) {
+            let dep_hash = if let Some((_, _, cached_hash)) = file_index.get(&dep_path) {
                 // index.tomlから既存のハッシュを取得
                 cached_hash.clone()
             } else if dep_full_path.exists() && dep_full_path.is_file() {
@@ -105,14 +106,14 @@ pub fn update_or_add_entry(
     entries
 }
 
-/// index.toml用のマッピングを更新する（新しいHashMapを返す）
+/// index.toml用のマッピングを更新する（新しいFileIndexを返す）
 pub fn update_path_to_metadata(
-    path_to_metadata: &HashMap<String, (u64, u64, String)>,
+    file_index: &FileIndex,
     paths: &[String],
     path_to_new_metadata: &HashMap<String, (u64, u64)>,
     hash: &str,
-) -> HashMap<String, (u64, u64, String)> {
-    let mut result = path_to_metadata.clone();
+) -> FileIndex {
+    let mut result = file_index.clone();
     for path in paths {
         if let Some((mtime, size)) = path_to_new_metadata.get(path) {
             result.insert(path.clone(), (*mtime, *size, hash.to_string()));
@@ -135,15 +136,15 @@ pub fn get_file_metadata(path: &Path) -> Option<(u64, u64)> {
     })
 }
 
-/// path_to_metadataを更新する（新しいHashMapを返す）
+/// file_indexを更新する（新しいFileIndexを返す）
 pub fn update_path_metadata(
-    path_to_metadata: &HashMap<String, (u64, u64, String)>,
+    file_index: &FileIndex,
     path: String,
     mtime: u64,
     size: u64,
     path_to_hash: &HashMap<String, String>,
-) -> HashMap<String, (u64, u64, String)> {
-    let mut result = path_to_metadata.clone();
+) -> FileIndex {
+    let mut result = file_index.clone();
     if let Some((_, _, hash)) = result.get(&path) {
         // 既に存在する場合は、mtime/sizeを更新
         result.insert(path.clone(), (mtime, size, hash.clone()));
@@ -154,33 +155,33 @@ pub fn update_path_metadata(
     result
 }
 
-/// 現在のファイルリストに存在しないパスをindex.tomlから削除する（新しいHashMapを返す）
+/// 現在のファイルリストに存在しないパスをindex.tomlから削除する（新しいFileIndexを返す）
 pub fn remove_obsolete_paths(
-    path_to_metadata: &HashMap<String, (u64, u64, String)>,
+    file_index: &FileIndex,
     files: &[FileEntry],
-) -> HashMap<String, (u64, u64, String)> {
+) -> FileIndex {
     let current_paths: HashSet<String> = files
         .iter()
         .map(|f| f.relative_path.to_string_lossy().to_string())
         .collect();
     
-    path_to_metadata
+    file_index
         .iter()
         .filter(|(path, _)| current_paths.contains(*path))
         .map(|(k, v)| (k.clone(), v.clone()))
         .collect()
 }
 
-/// ハッシュごとの処理を実行する（更新されたpath_to_metadataを返す）
+/// ハッシュごとの処理を実行する（更新されたfile_indexを返す）
 pub fn process_hash_group(
     hash: String,
     mut paths: Vec<String>,
     file_path: PathBuf,
     storage: &Storage,
     root_dir: &Path,
-    path_to_metadata: &HashMap<String, (u64, u64, String)>,
+    file_index: &FileIndex,
     path_to_new_metadata: &HashMap<String, (u64, u64)>,
-) -> anyhow::Result<HashMap<String, (u64, u64, String)>> {
+) -> anyhow::Result<FileIndex> {
     // パスをソートして重複を除去
     paths = normalize_paths(paths);
 
@@ -207,7 +208,7 @@ pub fn process_hash_group(
             &file_path,
             &content,
             root_dir,
-            path_to_metadata,
+            file_index,
         );
 
         // メタ情報を更新
@@ -218,9 +219,9 @@ pub fn process_hash_group(
             deps,
         );
 
-        // index.toml用のマッピングを更新（新しいHashMapを返す）
+        // index.toml用のマッピングを更新（新しいFileIndexを返す）
         let updated_metadata = update_path_to_metadata(
-            path_to_metadata,
+            file_index,
             &paths,
             path_to_new_metadata,
             &hash,
@@ -232,7 +233,7 @@ pub fn process_hash_group(
 
         updated_metadata
     } else {
-        path_to_metadata.clone()
+        file_index.clone()
     };
 
     Ok(updated_metadata)
@@ -243,45 +244,45 @@ pub fn process_all_hash_groups(
     hash_to_info: impl IntoIterator<Item = (String, (Vec<String>, PathBuf))>,
     storage: &Storage,
     root_dir: &Path,
-    mut path_to_metadata: HashMap<String, (u64, u64, String)>,
+    mut file_index: FileIndex,
     path_to_new_metadata: &HashMap<String, (u64, u64)>,
-) -> anyhow::Result<HashMap<String, (u64, u64, String)>> {
+) -> anyhow::Result<FileIndex> {
     for (hash, (paths, file_path)) in hash_to_info {
-        path_to_metadata = process_hash_group(
+        file_index = process_hash_group(
             hash,
             paths,
             file_path,
             storage,
             root_dir,
-            &path_to_metadata,
+            &file_index,
             path_to_new_metadata,
         )?;
     }
-    Ok(path_to_metadata)
+    Ok(file_index)
 }
 
 /// 全てのファイルのメタデータを更新する
 /// ハッシュ計算をスキップしたパスも含めて、全てのパスを更新
 pub fn update_all_file_metadata(
-    path_to_metadata: HashMap<String, (u64, u64, String)>,
+    file_index: FileIndex,
     files: &[FileEntry],
     path_to_hash: &HashMap<String, String>,
-) -> HashMap<String, (u64, u64, String)> {
+) -> FileIndex {
     files
         .iter()
-        .fold(path_to_metadata, |mut metadata, file_entry| {
+        .fold(file_index, |mut index, file_entry| {
             let relative_path_str = file_entry.relative_path.to_string_lossy().to_string();
             
             if let Some((mtime, size)) = get_file_metadata(&file_entry.path) {
-                metadata = update_path_metadata(
-                    &metadata,
+                index = update_path_metadata(
+                    &index,
                     relative_path_str,
                     mtime,
                     size,
                     path_to_hash,
                 );
             }
-            metadata
+            index
         })
 }
 
