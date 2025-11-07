@@ -1,0 +1,12 @@
+[package]
+name = "overcode"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+sha2 = "0.10"
+toml = "0.8"
+ignore = "0.4"
+regex = "1.10"
+walkdir = "2.4"
+anyhow = "1.0"
