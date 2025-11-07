@@ -8,7 +8,7 @@ use toml::Value;
 pub struct SourceEntry {
     pub paths: Vec<String>,
     pub hash: String,
-    pub deps: Vec<String>,
+    pub deps: Vec<(String, String)>, // (パス, sha256ハッシュ)のペア
 }
 
 pub struct Storage {
@@ -56,12 +56,32 @@ impl Storage {
                         .and_then(|v| v.as_array())
                         .map(|arr| {
                             arr.iter()
-                                .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                                .filter_map(|v| {
+                                    if let Some(table) = v.as_table() {
+                                        let path = table
+                                            .get("path")
+                                            .and_then(|p| p.as_str())
+                                            .map(|s| s.to_string())?;
+                                        let hash = table
+                                            .get("hash")
+                                            .and_then(|h| h.as_str())
+                                            .map(|s| s.to_string())
+                                            .unwrap_or_default();
+                                        Some((path, hash))
+                                    } else {
+                                        // 後方互換性: 文字列のみの場合はパスのみとして扱う
+                                        v.as_str().map(|s| (s.to_string(), String::new()))
+                                    }
+                                })
                                 .collect()
                         })
                         .unwrap_or_default();
 
-                    entries.push(SourceEntry { paths, hash, deps });
+                    entries.push(SourceEntry { 
+                        paths, 
+                        hash, 
+                        deps,
+                    });
                 }
             }
         }
@@ -91,8 +111,14 @@ impl Storage {
             ));
             src_table.insert("hash".to_string(), Value::String(entry.hash.clone()));
             src_table.insert("deps".to_string(), Value::Array(
-                entry.deps.iter().map(|d| Value::String(d.clone())).collect()
+                entry.deps.iter().map(|(path, hash)| {
+                    let mut dep_table = toml::map::Map::new();
+                    dep_table.insert("path".to_string(), Value::String(path.clone()));
+                    dep_table.insert("hash".to_string(), Value::String(hash.clone()));
+                    Value::Table(dep_table)
+                }).collect()
             ));
+            
             srcs_array.push(Value::Table(src_table));
         }
 
@@ -102,29 +128,73 @@ impl Storage {
         Ok(())
     }
 
-    pub fn get_all_known_hashes(&self) -> anyhow::Result<HashMap<String, Vec<SourceEntry>>> {
-        let mut known = HashMap::new();
-        
-        if !self.overcode_dir.exists() {
-            return Ok(known);
+    /// メタファイル（.toml）が存在するかどうかを確認
+    pub fn meta_exists(&self, hash: &str) -> bool {
+        let meta_path = self.overcode_dir.join(format!("{}.toml", hash));
+        meta_path.exists()
+    }
+
+    /// インデックスファイル（index.toml）を読み込む
+    /// パス→(mtime, size, hash)のマッピングを返す
+    pub fn load_index(&self) -> anyhow::Result<HashMap<String, (u64, u64, String)>> {
+        let index_path = self.overcode_dir.join("index.toml");
+        if !index_path.exists() {
+            return Ok(HashMap::new());
         }
 
-        for entry in fs::read_dir(&self.overcode_dir)? {
-            let entry = entry?;
-            let path = entry.path();
-            if let Some(ext) = path.extension() {
-                if ext == "toml" {
-                    if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
-                        let entries = self.load_meta(stem)?;
-                        if !entries.is_empty() {
-                            known.insert(stem.to_string(), entries);
-                        }
+        let content = fs::read_to_string(&index_path)?;
+        let value: Value = toml::from_str(&content)?;
+
+        let mut index = HashMap::new();
+        if let Some(files) = value.get("files").and_then(|v| v.as_table()) {
+            for (path, file_data) in files {
+                if let Some(table) = file_data.as_table() {
+                    let mtime = table
+                        .get("mtime")
+                        .and_then(|v| v.as_integer())
+                        .map(|i| i as u64)
+                        .unwrap_or(0);
+                    let size = table
+                        .get("size")
+                        .and_then(|v| v.as_integer())
+                        .map(|i| i as u64)
+                        .unwrap_or(0);
+                    let hash = table
+                        .get("hash")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string())
+                        .unwrap_or_default();
+
+                    if !hash.is_empty() {
+                        index.insert(path.clone(), (mtime, size, hash));
                     }
                 }
             }
         }
 
-        Ok(known)
+        Ok(index)
+    }
+
+    /// インデックスファイル（index.toml）を保存する
+    /// パス→(mtime, size, hash)のマッピングを保存
+    pub fn save_index(&self, index: &HashMap<String, (u64, u64, String)>) -> anyhow::Result<()> {
+        let index_path = self.overcode_dir.join("index.toml");
+        
+        let mut toml_value = toml::map::Map::new();
+        let mut files_table = toml::map::Map::new();
+
+        for (path, (mtime, size, hash)) in index {
+            let mut file_table = toml::map::Map::new();
+            file_table.insert("mtime".to_string(), Value::Integer(*mtime as i64));
+            file_table.insert("size".to_string(), Value::Integer(*size as i64));
+            file_table.insert("hash".to_string(), Value::String(hash.clone()));
+            files_table.insert(path.clone(), Value::Table(file_table));
+        }
+
+        toml_value.insert("files".to_string(), Value::Table(files_table));
+        let toml_string = toml::to_string_pretty(&Value::Table(toml_value))?;
+        fs::write(&index_path, toml_string)?;
+        Ok(())
     }
 }
 

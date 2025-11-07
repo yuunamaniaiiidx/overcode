@@ -1,72 +1,55 @@
+mod current_dir;
+mod file_hash_index;
 mod hash;
-mod python_parser;
+mod rust_parser;
 mod scanner;
 mod storage;
 
 use anyhow::Context;
 use std::collections::HashMap;
 use std::fs;
-use std::path::PathBuf;
+use std::time::UNIX_EPOCH;
+use file_hash_index::FileHashIndex;
 use storage::{SourceEntry, Storage};
 
 fn main() -> anyhow::Result<()> {
-    let args: Vec<String> = std::env::args().collect();
-    let root_dir = if args.len() > 1 {
-        PathBuf::from(&args[1])
-    } else {
-        std::env::current_dir()?
-    };
-
-    let root_dir = root_dir.canonicalize()
-        .with_context(|| format!("Failed to canonicalize path: {:?}", root_dir))?;
+    let root_dir = current_dir::get_root_dir()?;
 
     println!("Scanning directory: {:?}", root_dir);
-
-    // .overcodeディレクトリの準備
-    let storage = Storage::new(&root_dir)?;
-
-    // 既存のメタ情報を読み込み
-    let known_hashes = storage.get_all_known_hashes()?;
-    println!("Found {} known file hashes", known_hashes.len());
 
     // ディレクトリをスキャン
     let files = scanner::scan_directory(&root_dir)?;
     println!("Found {} files to process", files.len());
 
-    // ハッシュ→パスのマッピング（現在のスキャン結果）
-    // ハッシュ→(パスリスト, ファイルパス)のマッピング
-    let mut hash_to_info: HashMap<String, (Vec<String>, PathBuf)> = HashMap::new();
+    // .overcodeディレクトリの準備
+    let storage = Storage::new(&root_dir)?;
 
-    // まず全てのファイルのハッシュを計算
-    for file_entry in &files {
-        let relative_path_str = file_entry.relative_path.to_string_lossy().to_string();
-        
-        // ハッシュを計算
-        let hash = hash::calculate_file_hash(&file_entry.path)
-            .with_context(|| format!("Failed to calculate hash for {:?}", file_entry.path))?;
+    // 前回実行情報を取得（index.tomlから読み込む）
+    let mut path_to_metadata = storage.load_index()
+        .context("Failed to load index.toml")?;
+    println!("Loaded {} entries from index.toml", path_to_metadata.len());
 
-        // ハッシュごとにパスを集約
-        let entry = hash_to_info.entry(hash).or_insert_with(|| (Vec::new(), file_entry.path.clone()));
-        entry.0.push(relative_path_str);
-    }
+    // ファイル処理とハッシュ計算
+    let file_hash_index = FileHashIndex::from_files(&files, &path_to_metadata)?;
+    let (hash_to_info, path_to_hash, path_to_new_metadata) = file_hash_index.into_parts();
 
     // 各ハッシュについて処理
     for (hash, (paths, file_path)) in hash_to_info {
-        // パスをソートして重複を除去
-        let mut paths = paths;
-        paths.sort();
-        paths.dedup();
-
-        // 既存のメタ情報を確認
-        let existing_entries = known_hashes.get(&hash).cloned().unwrap_or_default();
+        // .overcode内にメタファイルが存在するか確認（ファイルシステムで直接確認）
+        let meta_exists = storage.meta_exists(&hash);
+        
+        // 既存のメタ情報を読み込む（存在する場合のみ）
+        let existing_entries = if meta_exists {
+            storage.load_meta(&hash).unwrap_or_default()
+        } else {
+            Vec::new()
+        };
         
         // 既存のエントリから全ての既知のパスを収集
-        let mut known_paths: Vec<String> = existing_entries
+        let known_paths: std::collections::HashSet<String> = existing_entries
             .iter()
             .flat_map(|e| e.paths.iter().cloned())
             .collect();
-        known_paths.sort();
-        known_paths.dedup();
 
         // 新しいパスがあるかチェック
         let has_new_paths = paths.iter().any(|p| !known_paths.contains(p));
@@ -83,16 +66,32 @@ fn main() -> anyhow::Result<()> {
             storage.save_file(&hash, &content)
                 .with_context(|| format!("Failed to save file for hash: {}", hash))?;
 
-            // 依存関係を解析（Pythonファイルの場合、最初のパスを使用）
+            // 依存関係を解析（Rustファイルの場合、最初のパスを使用）
             let mut deps = Vec::new();
-            if file_path.extension().and_then(|s| s.to_str()) == Some("py") {
+            if file_path.extension().and_then(|s| s.to_str()) == Some("rs") {
                 let content_str = String::from_utf8_lossy(&content);
-                deps = python_parser::extract_dependencies(
+                let dep_paths = rust_parser::extract_dependencies(
                     &file_path,
                     &content_str,
                     &root_dir,
                 )
                 .unwrap_or_default();
+                
+                // 各依存先のハッシュを計算
+                for dep_path in dep_paths {
+                    let dep_full_path = root_dir.join(&dep_path);
+                    let dep_hash = if let Some((_, _, cached_hash)) = path_to_metadata.get(&dep_path) {
+                        // index.tomlから既存のハッシュを取得
+                        cached_hash.clone()
+                    } else if dep_full_path.exists() && dep_full_path.is_file() {
+                        // ファイルの場合、ハッシュを計算
+                        hash::calculate_file_hash(&dep_full_path)
+                            .unwrap_or_default()
+                    } else {
+                        String::new()
+                    };
+                    deps.push((dep_path, dep_hash));
+                }
             }
 
             // メタ情報を更新
@@ -119,10 +118,17 @@ fn main() -> anyhow::Result<()> {
             // 新しいエントリを追加
             if !found {
                 updated_entries.push(SourceEntry {
-                    paths,
+                    paths: paths.clone(),
                     hash: hash.clone(),
                     deps,
                 });
+            }
+
+            // index.toml用のマッピングを更新
+            for path in &paths {
+                if let Some((mtime, size)) = path_to_new_metadata.get(path) {
+                    path_to_metadata.insert(path.clone(), (*mtime, *size, hash.clone()));
+                }
             }
 
             // メタ情報を保存
@@ -130,6 +136,45 @@ fn main() -> anyhow::Result<()> {
                 .with_context(|| format!("Failed to save meta for hash: {}", hash))?;
         }
     }
+
+    // index.tomlを更新（処理完了後）
+    // 全てのファイルについて、現在のmtime/sizeでpath_to_metadataを更新
+    // ハッシュ計算をスキップしたパスも含めて、全てのパスを更新
+    for file_entry in &files {
+        let relative_path_str = file_entry.relative_path.to_string_lossy().to_string();
+        
+        // 現在のメタデータを取得
+        if let Ok(metadata) = fs::metadata(&file_entry.path) {
+            let mtime = metadata
+                .modified()
+                .ok()
+                .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+                .map(|d| d.as_secs())
+                .unwrap_or(0);
+            let size = metadata.len();
+            
+            // path_to_metadataからハッシュを取得
+            if let Some((_, _, hash)) = path_to_metadata.get(&relative_path_str) {
+                // 既に存在する場合は、mtime/sizeを更新
+                path_to_metadata.insert(relative_path_str, (mtime, size, hash.clone()));
+            } else if let Some(hash) = path_to_hash.get(&relative_path_str) {
+                // 新規に計算したハッシュのパスの場合
+                path_to_metadata.insert(relative_path_str, (mtime, size, hash.clone()));
+            }
+        }
+    }
+
+    // 現在のファイルリストに存在しないパスをindex.tomlから削除
+    let current_paths: std::collections::HashSet<String> = files
+        .iter()
+        .map(|f| f.relative_path.to_string_lossy().to_string())
+        .collect();
+    
+    path_to_metadata.retain(|path, _| current_paths.contains(path));
+
+    // index.tomlを保存
+    storage.save_index(&path_to_metadata)
+        .context("Failed to save index.toml")?;
 
     println!("Processing complete!");
     Ok(())
