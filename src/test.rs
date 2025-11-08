@@ -7,7 +7,8 @@ use crate::config::Config;
 use crate::storage::Storage;
 use log::{info, warn};
 
-/// driver_mappingsのパターンにマッチしたファイルを取得し、replacementで変換した結果を返す
+/// driver_mappingsのパターンにマッチしたファイルを取得する
+/// 元のファイル名（変換前）を返すことで、{src_name}.driver.{testtitle}.rs形式のファイルを個別に実行できる
 fn find_driver_matched_files(config: &Config, storage: &Storage) -> anyhow::Result<Vec<String>> {
     let file_index = storage.load_index()
         .context("Failed to load index")?;
@@ -21,9 +22,8 @@ fn find_driver_matched_files(config: &Config, storage: &Storage) -> anyhow::Resu
         
         for (file_path, _) in file_index.iter() {
             if pattern.is_match(file_path) {
-                // replacementを適用（正規表現のキャプチャグループを使用）
-                let replaced = pattern.replace(file_path, &mapping.replacement);
-                matched_files.push(replaced.to_string());
+                // 元のファイル名（変換前）を保持して、個別に実行できるようにする
+                matched_files.push(file_path.clone());
             }
         }
     }
