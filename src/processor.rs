@@ -56,7 +56,7 @@ pub fn extract_dependencies_with_hashes(
         for dep_path in dep_paths {
             let dep_full_path = root_dir.join(&dep_path);
             let dep_hash = if let Some((_, _, cached_hash)) = file_index.get(&dep_path) {
-                // index.tomlから既存のハッシュを取得
+                // 既存のハッシュを取得
                 cached_hash.clone()
             } else if dep_full_path.exists() && dep_full_path.is_file() {
                 // ファイルの場合、ハッシュを計算
@@ -106,7 +106,7 @@ pub fn update_or_add_entry(
     entries
 }
 
-/// index.toml用のマッピングを更新する（新しいFileIndexを返す）
+/// マッピングを更新する（新しいFileIndexを返す）
 pub fn update_path_to_metadata(
     file_index: &FileIndex,
     paths: &[String],
@@ -155,7 +155,7 @@ pub fn update_path_metadata(
     result
 }
 
-/// 現在のファイルリストに存在しないパスをindex.tomlから削除する（新しいFileIndexを返す）
+/// 現在のファイルリストに存在しないパスを削除する（新しいFileIndexを返す）
 pub fn remove_obsolete_paths(
     file_index: &FileIndex,
     files: &[FileEntry],
@@ -219,7 +219,7 @@ pub fn process_hash_group(
             deps,
         );
 
-        // index.toml用のマッピングを更新（新しいFileIndexを返す）
+        // マッピングを更新（新しいFileIndexを返す）
         let updated_metadata = update_path_to_metadata(
             file_index,
             &paths,

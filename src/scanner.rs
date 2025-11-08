@@ -1,12 +1,13 @@
 use ignore::WalkBuilder;
 use std::path::{Path, PathBuf};
+use crate::config::IgnorePattern;
 
 pub struct FileEntry {
     pub path: PathBuf,
     pub relative_path: PathBuf,
 }
 
-pub fn scan_directory(root: &Path) -> anyhow::Result<Vec<FileEntry>> {
+pub fn scan_directory(root: &Path, ignore_patterns: &[IgnorePattern]) -> anyhow::Result<Vec<FileEntry>> {
     let mut entries = Vec::new();
     
     let walker = WalkBuilder::new(root)
@@ -21,6 +22,12 @@ pub fn scan_directory(root: &Path) -> anyhow::Result<Vec<FileEntry>> {
         
         // .overcodeディレクトリを除外
         if path.components().any(|c| c.as_os_str() == ".overcode") {
+            continue;
+        }
+        
+        // ignoreパターンで除外
+        let should_ignore = ignore_patterns.iter().any(|pattern| pattern.matches(path, root));
+        if should_ignore {
             continue;
         }
         

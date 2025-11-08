@@ -1,5 +1,6 @@
 mod build;
 mod cli;
+mod config;
 mod current_dir;
 mod file_hash_index;
 mod file_index;
@@ -20,10 +21,17 @@ fn main() -> anyhow::Result<()> {
 
     println!("Root directory: {:?}", cli.root_dir);
 
+    // 設定ファイルを読み込む
+    let config = config::Config::load_from_root(&cli.root_dir)?;
+    let ignore_patterns = config.get_ignore_patterns();
+    if !ignore_patterns.is_empty() {
+        println!("Loaded {} ignore pattern(s)", ignore_patterns.len());
+    }
+
     println!("Scanning directory: {:?}", cli.root_dir);
 
     // ディレクトリをスキャン
-    let files = scanner::scan_directory(&cli.root_dir)?;
+    let files = scanner::scan_directory(&cli.root_dir, &ignore_patterns)?;
     println!("Found {} files to process", files.len());
 
     // .overcodeディレクトリの準備

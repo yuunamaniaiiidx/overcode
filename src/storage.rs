@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::time::{SystemTime, UNIX_EPOCH};
 use toml::Value;
 use crate::file_index::FileIndex;
 
@@ -22,6 +23,13 @@ impl Storage {
         if !overcode_dir.exists() {
             fs::create_dir_all(&overcode_dir)?;
         }
+        
+        // historyディレクトリを作成
+        let history_dir = overcode_dir.join("history");
+        if !history_dir.exists() {
+            fs::create_dir_all(&history_dir)?;
+        }
+        
         Ok(Self { overcode_dir })
     }
 
@@ -129,19 +137,62 @@ impl Storage {
         Ok(())
     }
 
-    /// インデックスファイル（index.toml）が存在するかチェックする
+    /// インデックスファイルが存在するかチェックする（historyディレクトリ内にファイルがあるか）
     pub fn index_exists(&self) -> bool {
-        let index_path = self.overcode_dir.join("index.toml");
-        index_path.exists()
+        let history_dir = self.overcode_dir.join("history");
+        if !history_dir.exists() {
+            return false;
+        }
+        
+        // historyディレクトリ内に.tomlファイルが存在するかチェック
+        if let Ok(entries) = fs::read_dir(&history_dir) {
+            for entry in entries.flatten() {
+                if let Some(ext) = entry.path().extension() {
+                    if ext == "toml" {
+                        return true;
+                    }
+                }
+            }
+        }
+        false
     }
 
-    /// インデックスファイル（index.toml）を読み込む
+    /// 最新の履歴ファイルを読み込む
     /// パス→(mtime, size, hash)のマッピングを返す
     pub fn load_index(&self) -> anyhow::Result<FileIndex> {
-        let index_path = self.overcode_dir.join("index.toml");
-        if !index_path.exists() {
+        let history_dir = self.overcode_dir.join("history");
+        if !history_dir.exists() {
             return Ok(FileIndex::new());
         }
+
+        // historyディレクトリ内の.tomlファイルを列挙し、タイムスタンプが最大のものを探す
+        let mut latest_file: Option<(u64, PathBuf)> = None;
+        
+        if let Ok(entries) = fs::read_dir(&history_dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if let Some(ext) = path.extension() {
+                    if ext == "toml" {
+                        if let Some(file_stem) = path.file_stem().and_then(|s| s.to_str()) {
+                            if let Ok(timestamp) = file_stem.parse::<u64>() {
+                                match latest_file {
+                                    None => latest_file = Some((timestamp, path)),
+                                    Some((latest_ts, _)) if timestamp > latest_ts => {
+                                        latest_file = Some((timestamp, path))
+                                    }
+                                    _ => {}
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        let index_path = match latest_file {
+            Some((_, path)) => path,
+            None => return Ok(FileIndex::new()),
+        };
 
         let content = fs::read_to_string(&index_path)?;
         let value: Value = toml::from_str(&content)?;
@@ -176,10 +227,17 @@ impl Storage {
         Ok(FileIndex::from_hashmap(index))
     }
 
-    /// インデックスファイル（index.toml）を保存する
-    /// パス→(mtime, size, hash)のマッピングを保存
+    /// インデックスファイルをhistoryディレクトリに保存する
+    /// パス→(mtime, size, hash)のマッピングをhistory/{timestamp}.tomlとして保存
     pub fn save_index(&self, index: &FileIndex) -> anyhow::Result<()> {
-        let index_path = self.overcode_dir.join("index.toml");
+        let history_dir = self.overcode_dir.join("history");
+        
+        // タイムスタンプを取得
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_err(|e| anyhow::anyhow!("Failed to get timestamp: {}", e))?
+            .as_secs();
+        let history_path = history_dir.join(format!("{}.toml", timestamp));
         
         let mut toml_value = toml::map::Map::new();
         let mut files_table = toml::map::Map::new();
@@ -194,7 +252,7 @@ impl Storage {
 
         toml_value.insert("files".to_string(), Value::Table(files_table));
         let toml_string = toml::to_string_pretty(&Value::Table(toml_value))?;
-        fs::write(&index_path, toml_string)?;
+        fs::write(&history_path, toml_string)?;
         Ok(())
     }
 }

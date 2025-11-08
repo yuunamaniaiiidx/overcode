@@ -14,10 +14,10 @@ pub fn process_index(
     files: &[FileEntry],
     root_dir: &Path,
 ) -> anyhow::Result<FileIndex> {
-    // 前回実行情報を取得（index.tomlから読み込む）
+    // 前回実行情報を取得（最新の履歴ファイルから読み込む）
     let mut file_index = storage.load_index()
-        .context("Failed to load index.toml")?;
-    println!("Loaded {} entries from index.toml", file_index.len());
+        .context("Failed to load latest history file")?;
+    println!("Loaded {} entries from latest history file", file_index.len());
 
     // ファイル処理とハッシュ計算
     let file_hash_index = FileHashIndex::from_files(&files, &file_index)?;
@@ -39,12 +39,12 @@ pub fn process_index(
         &path_to_hash,
     );
 
-    // 現在のファイルリストに存在しないパスをindex.tomlから削除
+    // 現在のファイルリストに存在しないパスを削除
     file_index = processor::remove_obsolete_paths(&file_index, &files);
 
-    // index.tomlを保存
+    // 履歴ファイルとして保存
     storage.save_index(&file_index)
-        .context("Failed to save index.toml")?;
+        .context("Failed to save history file")?;
 
     Ok(file_index)
 }
