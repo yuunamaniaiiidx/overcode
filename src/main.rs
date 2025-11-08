@@ -42,8 +42,8 @@ fn main() -> anyhow::Result<()> {
             process_index(&storage, &files, &cli.root_dir)?;
         }
         Command::Build => {
-            let file_index = process_index(&storage, &files, &cli.root_dir)?;
-            process_build(&file_index)?;
+            process_index(&storage, &files, &cli.root_dir)?;
+            process_build(&storage)?;
         }
     }
 
