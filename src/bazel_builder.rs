@@ -7,9 +7,11 @@ use toml::Value;
 use crate::storage::Storage;
 
 /// BAZEL BUILDファイルとWORKSPACEファイルを生成する
+/// include_testsがtrueの場合、.rsファイルに対してrust_testターゲットを生成し、WORKSPACEにrules_rustを追加する
 pub fn generate_build_files(
     root_dir: &Path,
     history_path: &Path,
+    include_tests: bool,
 ) -> Result<(PathBuf, PathBuf)> {
     // historyファイルを読み込む
     let content = fs::read_to_string(history_path)?;
@@ -78,6 +80,11 @@ pub fn generate_build_files(
     let mut build_content = String::new();
     build_content.push_str("# Generated BUILD file from history\n");
     build_content.push_str("# DO NOT EDIT MANUALLY\n\n");
+    
+    // テストターゲットを生成する場合のみloadを追加
+    if include_tests {
+        build_content.push_str("load(\"@rules_rust//rust:defs.bzl\", \"rust_test\")\n\n");
+    }
 
     // filegroupルールを生成（シンボリックリンクされたファイルを参照）
     if !file_entries.is_empty() {
@@ -95,12 +102,57 @@ pub fn generate_build_files(
         build_content.push_str(")\n\n");
     }
 
+    // .rsファイルに対してrust_testターゲットを生成（include_testsがtrueの場合のみ）
+    if include_tests {
+        let mut rust_files: Vec<&String> = file_entries
+            .iter()
+            .map(|(path, _)| path)
+            .filter(|path| path.ends_with(".rs"))
+            .collect();
+        rust_files.sort();
+
+        for path in &rust_files {
+            let normalized_path = path.replace('\\', "/");
+            // ターゲット名を生成（パスから拡張子を除き、スラッシュをアンダースコアに変換）
+            let target_name = normalized_path
+                .trim_end_matches(".rs")
+                .replace('/', "_")
+                .replace('-', "_")
+                .replace('.', "_");
+            
+            build_content.push_str(&format!("rust_test(\n"));
+            build_content.push_str(&format!("    name = \"{}_test\",\n", target_name));
+            build_content.push_str(&format!("    srcs = [\"{}\"],\n", normalized_path));
+            build_content.push_str(&format!("    visibility = [\"//visibility:public\"],\n"));
+            build_content.push_str(&format!(")\n\n"));
+        }
+    }
+
     // BUILDファイルを書き込む
     fs::write(&build_file_path, build_content)?;
 
     // WORKSPACEファイルを生成（builds/WORKSPACEに）
     let workspace_path = builds_dir.join("WORKSPACE");
-    let workspace_content = "# Generated WORKSPACE file\n# DO NOT EDIT MANUALLY\n\nworkspace(name = \"overcode\")\n";
+    let mut workspace_content = String::new();
+    workspace_content.push_str("# Generated WORKSPACE file\n");
+    workspace_content.push_str("# DO NOT EDIT MANUALLY\n\n");
+    workspace_content.push_str("workspace(name = \"overcode\")\n");
+    
+    // テストターゲットを生成する場合のみrules_rustを追加
+    if include_tests {
+        workspace_content.push_str("\n");
+        workspace_content.push_str("load(\"@bazel_tools//tools/build_defs/repo:http.bzl\", \"http_archive\")\n\n");
+        workspace_content.push_str("# rules_rustの設定\n");
+        workspace_content.push_str("http_archive(\n");
+        workspace_content.push_str("    name = \"rules_rust\",\n");
+        workspace_content.push_str("    sha256 = \"950a3ad4166ae60c8ccd628d1a8e64396106e7f98361ebe91b0bcfe60d8e4b60\",\n");
+        workspace_content.push_str("    urls = [\"https://github.com/bazelbuild/rules_rust/releases/download/0.40.0/rules_rust-v0.40.0.tar.gz\"],\n");
+        workspace_content.push_str(")\n\n");
+        workspace_content.push_str("load(\"@rules_rust//rust:repositories.bzl\", \"rust_repositories\")\n");
+        workspace_content.push_str("rust_repositories()\n\n");
+        workspace_content.push_str("load(\"@rules_rust//tools/rust_analyzer/rust_analyzer.bzl\", \"rust_analyzer_repositories\")\n");
+        workspace_content.push_str("rust_analyzer_repositories()\n");
+    }
     fs::write(&workspace_path, workspace_content)?;
 
     Ok((build_file_path, workspace_path))
@@ -135,10 +187,11 @@ pub fn process_build(root_dir: &Path) -> Result<()> {
     
     match latest_history {
         Some((_timestamp, history_path)) => {
-            // BUILDファイルとWORKSPACEファイルを生成
+            // BUILDファイルとWORKSPACEファイルを生成（テストターゲットは含めない）
             let (build_file_path, workspace_path) = generate_build_files(
                 root_dir,
                 &history_path,
+                false,
             )?;
             
             println!("Generated BUILD file at: {:?}", build_file_path);
@@ -167,6 +220,57 @@ pub fn process_build(root_dir: &Path) -> Result<()> {
             }
             
             println!("BAZEL build completed successfully");
+            Ok(())
+        }
+        None => {
+            anyhow::bail!("No history file found. Please run 'index' command first.");
+        }
+    }
+}
+
+/// Testコマンドの処理を実行する
+/// 最新のhistoryファイルを取得し、BUILDファイルとWORKSPACEファイルを生成してBAZELテストを実行する
+pub fn process_test_target(root_dir: &Path) -> Result<()> {
+    // 最新のhistoryファイルを取得
+    let storage = Storage::new(root_dir)?;
+    let latest_history = storage.get_latest_history_path()?;
+    
+    match latest_history {
+        Some((_timestamp, history_path)) => {
+            // BUILDファイルとWORKSPACEファイルを生成（テストターゲットを含める）
+            let (build_file_path, workspace_path) = generate_build_files(
+                root_dir,
+                &history_path,
+                true,
+            )?;
+            
+            println!("Generated BUILD file at: {:?}", build_file_path);
+            println!("Generated WORKSPACE file at: {:?}", workspace_path);
+            
+            // BAZELコマンドを実行（.overcode/buildsディレクトリから）
+            let builds_dir = root_dir.join(".overcode").join("builds");
+            
+            // .rsファイルのテストターゲットをすべて実行
+            let output = ProcessCommand::new("bazel")
+                .arg("test")
+                .arg("//...")
+                .current_dir(&builds_dir)
+                .output()
+                .context("Failed to execute bazel test command")?;
+            
+            // 標準出力と標準エラー出力を表示
+            if !output.stdout.is_empty() {
+                println!("{}", String::from_utf8_lossy(&output.stdout));
+            }
+            if !output.stderr.is_empty() {
+                eprintln!("{}", String::from_utf8_lossy(&output.stderr));
+            }
+            
+            if !output.status.success() {
+                anyhow::bail!("BAZEL test failed with exit code: {:?}", output.status.code());
+            }
+            
+            println!("BAZEL test completed successfully");
             Ok(())
         }
         None => {
