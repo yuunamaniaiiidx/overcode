@@ -1,5 +1,6 @@
 use anyhow::Result;
 use std::fs;
+use std::os::unix::fs::symlink;
 use std::path::{Path, PathBuf};
 use toml::Value;
 
@@ -15,39 +16,51 @@ pub fn generate_build_files(
     // builds/v1ディレクトリを作成
     let overcode_dir = root_dir.join(".overcode");
     let builds_dir = overcode_dir.join("builds").join("v1");
+    
+    // 既存のbuilds/v1ディレクトリをクリーンアップ（シンボリックリンクを削除）
+    if builds_dir.exists() {
+        remove_dir_contents(&builds_dir)?;
+    }
     fs::create_dir_all(&builds_dir)?;
 
-    // ファイルリストを収集（存在するファイルのみ）
-    let mut source_files = Vec::new();
+    // ファイルリストを収集（パスとハッシュのペア）
+    let mut file_entries: Vec<(String, String)> = Vec::new();
     if let Some(files) = value.get("files").and_then(|v| v.as_table()) {
-        for (path, _) in files {
-            // ファイルが実際に存在するか確認
-            let file_path = root_dir.join(path);
-            if file_path.exists() && file_path.is_file() {
-                // パスをBAZEL形式に変換（相対パスとして扱う）
-                // root_dirからの相対パスとして扱う
-                source_files.push(path.clone());
+        for (path, file_data) in files {
+            if let Some(table) = file_data.as_table() {
+                if let Some(hash) = table.get("hash").and_then(|v| v.as_str()) {
+                    if !hash.is_empty() {
+                        // ハッシュファイルが存在するか確認
+                        let hash_file_path = overcode_dir.join(hash);
+                        if hash_file_path.exists() {
+                            file_entries.push((path.clone(), hash.to_string()));
+                        }
+                    }
+                }
             }
         }
     }
 
-    // ルートパッケージにBUILDファイルを作成（または更新）
-    let root_build_path = root_dir.join("BUILD");
-    let mut root_build_content = String::new();
-    root_build_content.push_str("# Generated BUILD file for root package\n");
-    root_build_content.push_str("# DO NOT EDIT MANUALLY\n\n");
-    
-    // すべてのファイルをexports_filesでエクスポート
-    if !source_files.is_empty() {
-        root_build_content.push_str("exports_files([\n");
-        for file in &source_files {
-            let normalized_path = file.replace('\\', "/");
-            root_build_content.push_str(&format!("    \"{}\",\n", normalized_path));
+    // シンボリックリンクを作成（パス構造を復元）
+    for (path, hash) in &file_entries {
+        let link_path = builds_dir.join(path);
+        
+        // ディレクトリを作成
+        if let Some(parent) = link_path.parent() {
+            fs::create_dir_all(parent)?;
         }
-        root_build_content.push_str("])\n");
+        
+        // 既存のリンクやファイルを削除
+        if link_path.exists() || link_path.is_symlink() {
+            fs::remove_file(&link_path).ok();
+        }
+        
+        // 相対パスでシンボリックリンクを作成
+        // builds/v1/src/main.rs から ../../{hash} へのリンク
+        let link_depth = path.matches('/').count() + 1;
+        let relative_hash_path = format!("{}../{}", "../".repeat(link_depth), hash);
+        symlink(&relative_hash_path, &link_path)?;
     }
-    
-    fs::write(&root_build_path, root_build_content)?;
 
     // BUILDファイルのパス
     let build_file_path = builds_dir.join("BUILD");
@@ -57,18 +70,16 @@ pub fn generate_build_files(
     build_content.push_str("# Generated BUILD file from history\n");
     build_content.push_str("# DO NOT EDIT MANUALLY\n\n");
 
-    // filegroupルールを生成
-    if !source_files.is_empty() {
+    // filegroupルールを生成（シンボリックリンクされたファイルを参照）
+    if !file_entries.is_empty() {
         build_content.push_str("filegroup(\n");
         build_content.push_str("    name = \"sources\",\n");
         build_content.push_str("    srcs = [\n");
-        for file in &source_files {
-            // パスをBAZEL形式に変換（root_dirからの相対パス）
-            // パス区切り文字を統一（バックスラッシュをスラッシュに）
-            let normalized_path = file.replace('\\', "/");
-            // BAZELのfilegroupでルートパッケージのファイルを参照する場合
-            // ルートパッケージにBUILDファイルがあるため、`//:filename` の形式を使用
-            build_content.push_str(&format!("        \"//:{}\",\n", normalized_path));
+        for (path, _) in &file_entries {
+            // パスをBAZEL形式に変換（パス区切り文字を統一）
+            let normalized_path = path.replace('\\', "/");
+            // v1ディレクトリがワークスペースルートなので、相対パスで参照
+            build_content.push_str(&format!("        \"{}\",\n", normalized_path));
         }
         build_content.push_str("    ],\n");
         build_content.push_str("    visibility = [\"//visibility:public\"],\n");
@@ -78,13 +89,35 @@ pub fn generate_build_files(
     // BUILDファイルを書き込む
     fs::write(&build_file_path, build_content)?;
 
-    // WORKSPACEファイルを生成（root_dirに、既に存在する場合はスキップ）
-    let workspace_path = root_dir.join("WORKSPACE");
-    if !workspace_path.exists() {
-        let workspace_content = "# Generated WORKSPACE file\n# DO NOT EDIT MANUALLY\n\nworkspace(name = \"overcode\")\n";
-        fs::write(&workspace_path, workspace_content)?;
-    }
+    // WORKSPACEファイルを生成（.overcode/WORKSPACEに）
+    let workspace_path = overcode_dir.join("WORKSPACE");
+    let workspace_content = "# Generated WORKSPACE file\n# DO NOT EDIT MANUALLY\n\nworkspace(name = \"overcode\")\n";
+    fs::write(&workspace_path, workspace_content)?;
+    
+    // builds/v1ディレクトリにもWORKSPACEファイルを配置（BAZELがbuilds/v1から実行されるため）
+    let workspace_v1_path = builds_dir.join("WORKSPACE");
+    fs::write(&workspace_v1_path, workspace_content)?;
 
     Ok((build_file_path, workspace_path))
+}
+
+/// ディレクトリの内容を再帰的に削除（シンボリックリンクも含む）
+fn remove_dir_contents(dir: &Path) -> Result<()> {
+    if !dir.exists() {
+        return Ok(());
+    }
+    
+    for entry in fs::read_dir(dir)? {
+        let entry = entry?;
+        let path = entry.path();
+        
+        if path.is_symlink() || path.is_file() {
+            fs::remove_file(&path)?;
+        } else if path.is_dir() {
+            fs::remove_dir_all(&path)?;
+        }
+    }
+    
+    Ok(())
 }
 

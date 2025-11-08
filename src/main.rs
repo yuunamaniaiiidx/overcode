@@ -42,11 +42,12 @@ fn main() -> anyhow::Result<()> {
                     println!("Generated BUILD file at: {:?}", build_file_path);
                     println!("Generated WORKSPACE file at: {:?}", workspace_path);
                     
-                    // BAZELコマンドを実行（ワークスペースのルートから）
+                    // BAZELコマンドを実行（.overcode/builds/v1ディレクトリから）
+                    let builds_v1_dir = cli.root_dir.join(".overcode").join("builds").join("v1");
                     let output = ProcessCommand::new("bazel")
                         .arg("build")
-                        .arg("//.overcode/builds/v1:sources")
-                        .current_dir(&cli.root_dir)
+                        .arg("//:sources")
+                        .current_dir(&builds_v1_dir)
                         .output()?;
                     
                     // 標準出力と標準エラー出力を表示
