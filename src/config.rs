@@ -2,6 +2,7 @@ use anyhow::{Context, Result};
 use serde::Deserialize;
 use std::path::Path;
 use std::fs;
+use std::io::Write;
 
 #[derive(Debug, Deserialize)]
 pub struct Config {
@@ -155,6 +156,47 @@ impl Config {
             .iter()
             .map(|entry| IgnorePattern::new(&entry.path))
             .collect()
+    }
+
+    /// 設定ファイルのテンプレート内容を返す
+    fn get_template_content() -> &'static str {
+        r#"[[ignores]]
+path = ".git"
+
+[[src_mappings]]
+pattern = "(.+)\\.src\\..+\\.(.+)"
+replacement = "$1.$2"
+
+[[driver_mappings]]
+pattern = "(.+)\\.driver\\..+\\.(.+)"
+replacement = "$1.$2"
+
+[[mock_mappings]]
+pattern = "(.+)\\.mock\\..+\\.(.+)"
+replacement = "$1.$2"
+"#
+    }
+
+    /// 設定ファイルを初期化する（存在しない場合にテンプレートを作成）
+    pub fn init_config(root_dir: &Path) -> Result<()> {
+        let config_path = root_dir.join("overcode.toml");
+
+        if config_path.exists() {
+            println!("設定ファイルは既に存在します: {:?}", config_path);
+            return Ok(());
+        }
+
+        println!("設定ファイルを作成します: {:?}", config_path);
+        let template = Self::get_template_content();
+        
+        let mut file = fs::File::create(&config_path)
+            .with_context(|| format!("Failed to create config file: {:?}", config_path))?;
+        
+        file.write_all(template.as_bytes())
+            .with_context(|| format!("Failed to write config file: {:?}", config_path))?;
+
+        println!("設定ファイルを作成しました: {:?}", config_path);
+        Ok(())
     }
 }
 

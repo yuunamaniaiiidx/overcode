@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Command {
     Index,
+    Init,
 }
 
 #[derive(Debug)]
@@ -70,15 +71,21 @@ impl Cli {
         let args: Vec<String> = std::env::args().collect();
         
         if args.len() < 2 {
-            anyhow::bail!("Usage: {} <index> [config_file]", args[0]);
+            anyhow::bail!("Usage: {} <command> [config_file]", args[0]);
         }
 
         let command = match args[1].as_str() {
             "index" => Command::Index,
-            _ => anyhow::bail!("Unknown command: {}. Use 'index'", args[1]),
+            "init" => Command::Init,
+            _ => anyhow::bail!("Unknown command: {}. Use 'index' or 'init'", args[1]),
         };
 
-        let root_dir = if args.len() > 2 {
+        // initコマンドの場合は設定ファイルを必須にしない
+        let root_dir = if matches!(command, Command::Init) {
+            // initコマンドの場合は現在のディレクトリを使用（設定ファイルは不要）
+            std::env::current_dir()
+                .context("Failed to get current directory")?
+        } else if args.len() > 2 {
             // 第二引数が指定されている場合：設定ファイルのパスとして扱う
             let config_path = PathBuf::from(&args[2]);
             find_config_dir(&config_path)?

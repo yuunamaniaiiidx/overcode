@@ -1,19 +1,35 @@
 use anyhow::Context;
 use std::path::Path;
+use crate::config;
 use crate::file_hash_index::FileHashIndex;
 use crate::file_index::FileIndex;
 use crate::processor;
-use crate::scanner::FileEntry;
+use crate::scanner;
 use crate::storage::Storage;
 
 /// インデックスの処理を実行する
-/// 前回実行情報の読み込み、ファイル処理、メタデータ更新、保存を行う
+/// 設定ファイルの読み込み、ディレクトリのスキャン、前回実行情報の読み込み、
+/// ファイル処理、メタデータ更新、保存を行う
 /// 戻り値: file_index
-pub fn process_index(
-    storage: &Storage,
-    files: &[FileEntry],
-    root_dir: &Path,
-) -> anyhow::Result<FileIndex> {
+pub fn process_index(root_dir: &Path) -> anyhow::Result<FileIndex> {
+    println!("Root directory: {:?}", root_dir);
+
+    // 設定ファイルを読み込む
+    let config = config::Config::load_from_root(root_dir)?;
+    let ignore_patterns = config.get_ignore_patterns();
+    if !ignore_patterns.is_empty() {
+        println!("Loaded {} ignore pattern(s)", ignore_patterns.len());
+    }
+
+    println!("Scanning directory: {:?}", root_dir);
+
+    // ディレクトリをスキャン
+    let files = scanner::scan_directory(root_dir, &ignore_patterns)?;
+    println!("Found {} files to process", files.len());
+
+    // .overcodeディレクトリの準備
+    let storage = Storage::new(root_dir)?;
+
     // 前回実行情報を取得（最新の履歴ファイルから読み込む）
     let mut file_index = storage.load_index()
         .context("Failed to load latest history file")?;
@@ -27,7 +43,7 @@ pub fn process_index(
     file_index = processor::process_all_hash_groups(
         hash_to_info,
         &storage,
-        &root_dir,
+        root_dir,
         file_index,
         &path_to_new_metadata,
     )?;
