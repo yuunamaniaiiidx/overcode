@@ -54,7 +54,7 @@ impl FileHashIndex {
         let size = metadata.len();
 
         // 既存のメタデータと比較
-        let should_calculate_hash = if let Some((cached_mtime, cached_size, cached_hash)) =
+        let should_calculate_hash = if let Some((cached_mtime, cached_size, cached_hash, _deps)) =
             file_index.get(&relative_path_str)
         {
             // mtimeとsizeが一致しない場合はハッシュを再計算

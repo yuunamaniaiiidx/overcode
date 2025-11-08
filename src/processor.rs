@@ -7,7 +7,7 @@ use crate::file_index::FileIndex;
 use crate::hash;
 use crate::rust_parser;
 use crate::scanner::FileEntry;
-use crate::storage::{SourceEntry, Storage};
+use crate::storage::Storage;
 
 /// パスリストをソートして重複を除去する
 pub fn normalize_paths(mut paths: Vec<String>) -> Vec<String> {
@@ -17,16 +17,16 @@ pub fn normalize_paths(mut paths: Vec<String>) -> Vec<String> {
 }
 
 /// 既存のメタ情報を読み込み、既知のパスを収集する
-pub fn load_existing_entries_and_collect_paths(
+pub fn load_existing_paths(
     storage: &Storage,
     hash: &str,
-) -> anyhow::Result<(Vec<SourceEntry>, HashSet<String>)> {
+) -> anyhow::Result<HashSet<String>> {
     let entries = storage.load_meta(hash).unwrap_or_default();
     let known_paths: HashSet<String> = entries
         .iter()
         .flat_map(|e| e.paths.iter().cloned())
         .collect();
-    Ok((entries, known_paths))
+    Ok(known_paths)
 }
 
 /// 新しいパスがあるかチェックする
@@ -55,7 +55,7 @@ pub fn extract_dependencies_with_hashes(
         // 各依存先のハッシュを計算
         for dep_path in dep_paths {
             let dep_full_path = root_dir.join(&dep_path);
-            let dep_hash = if let Some((_, _, cached_hash)) = file_index.get(&dep_path) {
+            let dep_hash = if let Some((_, _, cached_hash, _)) = file_index.get(&dep_path) {
                 // 既存のハッシュを取得
                 cached_hash.clone()
             } else if dep_full_path.exists() && dep_full_path.is_file() {
@@ -72,51 +72,18 @@ pub fn extract_dependencies_with_hashes(
     deps
 }
 
-/// メタ情報を更新する（既存エントリのマージまたは新規追加）
-pub fn update_or_add_entry(
-    mut entries: Vec<SourceEntry>,
-    hash: String,
-    paths: Vec<String>,
-    deps: Vec<(String, String)>,
-) -> Vec<SourceEntry> {
-    // 既存のエントリに同じハッシュのものがあるかチェック
-    let mut found = false;
-    for entry in &mut entries {
-        if entry.hash == hash {
-            // 既存のパスと新しいパスをマージ
-            let mut all_paths = entry.paths.clone();
-            all_paths.extend(paths.clone());
-            entry.paths = normalize_paths(all_paths);
-            // 依存関係を更新（最新のものを使用）
-            entry.deps = deps.clone();
-            found = true;
-            break;
-        }
-    }
-
-    // 新しいエントリを追加
-    if !found {
-        entries.push(SourceEntry {
-            paths: paths.clone(),
-            hash: hash.clone(),
-            deps,
-        });
-    }
-
-    entries
-}
-
 /// マッピングを更新する（新しいFileIndexを返す）
 pub fn update_path_to_metadata(
     file_index: &FileIndex,
     paths: &[String],
     path_to_new_metadata: &HashMap<String, (u64, u64)>,
     hash: &str,
+    deps: Vec<(String, String)>,
 ) -> FileIndex {
     let mut result = file_index.clone();
     for path in paths {
         if let Some((mtime, size)) = path_to_new_metadata.get(path) {
-            result.insert(path.clone(), (*mtime, *size, hash.to_string()));
+            result.insert(path.clone(), (*mtime, *size, hash.to_string(), deps.clone()));
         }
     }
     result
@@ -145,12 +112,12 @@ pub fn update_path_metadata(
     path_to_hash: &HashMap<String, String>,
 ) -> FileIndex {
     let mut result = file_index.clone();
-    if let Some((_, _, hash)) = result.get(&path) {
-        // 既に存在する場合は、mtime/sizeを更新
-        result.insert(path.clone(), (mtime, size, hash.clone()));
+    if let Some((_, _, hash, deps)) = result.get(&path) {
+        // 既に存在する場合は、mtime/sizeを更新（depsは保持）
+        result.insert(path.clone(), (mtime, size, hash.clone(), deps.clone()));
     } else if let Some(hash) = path_to_hash.get(&path) {
-        // 新規に計算したハッシュのパスの場合
-        result.insert(path, (mtime, size, hash.clone()));
+        // 新規に計算したハッシュのパスの場合（depsは空）
+        result.insert(path, (mtime, size, hash.clone(), Vec::new()));
     }
     result
 }
@@ -186,13 +153,13 @@ pub fn process_hash_group(
     paths = normalize_paths(paths);
 
     // 既存のメタ情報を読み込み、既知のパスを収集
-    let (existing_entries, known_paths) = load_existing_entries_and_collect_paths(storage, &hash)?;
+    let known_paths = load_existing_paths(storage, &hash)?;
 
     // 新しいパスがあるかチェック
     let has_new_paths = has_new_paths(&paths, &known_paths);
 
     // 新しいハッシュ、または新しいパスの場合のみ処理
-    let updated_metadata = if existing_entries.is_empty() || has_new_paths {
+    let updated_metadata = if known_paths.is_empty() || has_new_paths {
         println!("Processing hash: {} ({} paths)", &hash[..8], paths.len());
 
         // ファイル内容を読み込む（同じハッシュなら内容は同じなので1つだけ読み込む）
@@ -211,25 +178,14 @@ pub fn process_hash_group(
             file_index,
         );
 
-        // メタ情報を更新
-        let updated_entries = update_or_add_entry(
-            existing_entries,
-            hash.clone(),
-            paths.clone(),
-            deps,
-        );
-
         // マッピングを更新（新しいFileIndexを返す）
         let updated_metadata = update_path_to_metadata(
             file_index,
             &paths,
             path_to_new_metadata,
             &hash,
+            deps,
         );
-
-        // メタ情報を保存
-        storage.save_meta(&hash, &updated_entries)
-            .with_context(|| format!("Failed to save meta for hash: {}", hash))?;
 
         updated_metadata
     } else {
