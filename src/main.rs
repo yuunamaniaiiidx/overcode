@@ -32,34 +32,23 @@ fn main() -> anyhow::Result<()> {
             let latest_history = storage.get_latest_history_path()?;
             
             match latest_history {
-                Some((timestamp, history_path)) => {
+                Some((_timestamp, history_path)) => {
                     // BUILDファイルとWORKSPACEファイルを生成
                     let (build_file_path, workspace_path) = bazel_builder::generate_build_files(
                         &cli.root_dir,
                         &history_path,
-                        timestamp,
                     )?;
                     
                     println!("Generated BUILD file at: {:?}", build_file_path);
                     println!("Generated WORKSPACE file at: {:?}", workspace_path);
                     
-                    // BAZELコマンドを実行（.overcode/builds/{timestamp}ディレクトリから）
-                    let overcode_dir = cli.root_dir.join(".overcode");
-                    let builds_dir = overcode_dir.join("builds");
-                    let builds_timestamp_dir = builds_dir.join(timestamp.to_string());
-                    
-                    // ビルド成果物をbuilds配下に配置（複数のタイムスタンプディレクトリ間で共有）
-                    // output_baseは絶対パスで指定する必要がある
-                    let output_base = builds_dir.join(".bazel").canonicalize()
-                        .unwrap_or_else(|_| builds_dir.join(".bazel"));
+                    // BAZELコマンドを実行（.overcode/buildsディレクトリから）
+                    let builds_dir = cli.root_dir.join(".overcode").join("builds");
                     
                     let output = ProcessCommand::new("bazel")
-                        .arg(format!("--output_base={}", output_base.to_string_lossy()))
                         .arg("build")
                         .arg("//:sources")
-                        .arg("--symlink_prefix")
-                        .arg(".bazel-")
-                        .current_dir(&builds_timestamp_dir)
+                        .current_dir(&builds_dir)
                         .output()?;
                     
                     // 標準出力と標準エラー出力を表示

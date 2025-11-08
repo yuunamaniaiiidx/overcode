@@ -8,17 +8,16 @@ use toml::Value;
 pub fn generate_build_files(
     root_dir: &Path,
     history_path: &Path,
-    timestamp: u64,
 ) -> Result<(PathBuf, PathBuf)> {
     // historyファイルを読み込む
     let content = fs::read_to_string(history_path)?;
     let value: Value = toml::from_str(&content)?;
 
-    // builds/{timestamp}ディレクトリを作成
+    // buildsディレクトリを作成
     let overcode_dir = root_dir.join(".overcode");
-    let builds_dir = overcode_dir.join("builds").join(timestamp.to_string());
+    let builds_dir = overcode_dir.join("builds");
     
-    // 既存のbuilds/{timestamp}ディレクトリをクリーンアップ（シンボリックリンクを削除）
+    // 既存のbuildsディレクトリをクリーンアップ（シンボリックリンクを削除）
     if builds_dir.exists() {
         remove_dir_contents(&builds_dir)?;
     }
@@ -57,9 +56,16 @@ pub fn generate_build_files(
         }
         
         // 相対パスでシンボリックリンクを作成
-        // builds/{timestamp}/src/main.rs から ../../{hash} へのリンク
-        let link_depth = path.matches('/').count() + 1;
-        let relative_hash_path = format!("{}../{}", "../".repeat(link_depth), hash);
+        // builds/src/main.rs から ../{hash} へのリンク
+        // builds/Cargo.lock から ../{hash} へのリンク
+        let link_depth = path.matches('/').count();
+        let relative_hash_path = if link_depth == 0 {
+            // ルートファイル（例：Cargo.lock）の場合、../{hash}
+            format!("../{}", hash)
+        } else {
+            // サブディレクトリのファイル（例：src/main.rs）の場合、../../{hash}
+            format!("{}{}", "../".repeat(link_depth + 1), hash)
+        };
         symlink(&relative_hash_path, &link_path)?;
     }
 
@@ -79,7 +85,7 @@ pub fn generate_build_files(
         for (path, _) in &file_entries {
             // パスをBAZEL形式に変換（パス区切り文字を統一）
             let normalized_path = path.replace('\\', "/");
-            // {timestamp}ディレクトリがワークスペースルートなので、相対パスで参照
+            // buildsディレクトリがワークスペースルートなので、相対パスで参照
             build_content.push_str(&format!("        \"{}\",\n", normalized_path));
         }
         build_content.push_str("    ],\n");
@@ -90,14 +96,10 @@ pub fn generate_build_files(
     // BUILDファイルを書き込む
     fs::write(&build_file_path, build_content)?;
 
-    // WORKSPACEファイルを生成（.overcode/WORKSPACEに）
-    let workspace_path = overcode_dir.join("WORKSPACE");
+    // WORKSPACEファイルを生成（builds/WORKSPACEに）
+    let workspace_path = builds_dir.join("WORKSPACE");
     let workspace_content = "# Generated WORKSPACE file\n# DO NOT EDIT MANUALLY\n\nworkspace(name = \"overcode\")\n";
     fs::write(&workspace_path, workspace_content)?;
-    
-    // builds/{timestamp}ディレクトリにもWORKSPACEファイルを配置（BAZELがbuilds/{timestamp}から実行されるため）
-    let workspace_timestamp_path = builds_dir.join("WORKSPACE");
-    fs::write(&workspace_timestamp_path, workspace_content)?;
 
     Ok((build_file_path, workspace_path))
 }
