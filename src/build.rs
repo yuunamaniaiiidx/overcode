@@ -6,16 +6,16 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use crate::storage::Storage;
 
 /// build処理を実行する
-/// 最新のhistoryデータをもとに、.overcode/builds配下に元のファイル構造を再現する
+/// 最新のindex_historyデータをもとに、.overcode/builds配下に元のファイル構造を再現する
 pub fn process_build(root_dir: &Path) -> anyhow::Result<()> {
     let storage = Storage::new(root_dir)?;
 
-    // 最新のhistoryファイルを取得
+    // 最新のindex_historyファイルを取得
     let index = storage.load_index()
-        .context("Failed to load latest history file")?;
+        .context("Failed to load latest index history file")?;
     
     if index.len() == 0 {
-        anyhow::bail!("No history found. Please run 'index' command first.");
+        anyhow::bail!("No index history found. Please run 'index' command first.");
     }
 
     // buildsディレクトリを作成

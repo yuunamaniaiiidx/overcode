@@ -30,10 +30,10 @@ pub fn process_index(root_dir: &Path) -> anyhow::Result<FileIndex> {
     // .overcodeディレクトリの準備
     let storage = Storage::new(root_dir)?;
 
-    // 前回実行情報を取得（最新の履歴ファイルから読み込む）
+    // 前回実行情報を取得（最新のindex_historyファイルから読み込む）
     let mut file_index = storage.load_index()
-        .context("Failed to load latest history file")?;
-    println!("Loaded {} entries from latest history file", file_index.len());
+        .context("Failed to load latest index history file")?;
+    println!("Loaded {} entries from latest index history file", file_index.len());
 
     // ファイル処理とハッシュ計算
     let file_hash_index = FileHashIndex::from_files(&files, &file_index)?;
@@ -58,9 +58,9 @@ pub fn process_index(root_dir: &Path) -> anyhow::Result<FileIndex> {
     // 現在のファイルリストに存在しないパスを削除
     file_index = processor::remove_obsolete_paths(&file_index, &files);
 
-    // 履歴ファイルとして保存
+    // index_historyファイルとして保存
     storage.save_index(&file_index)
-        .context("Failed to save history file")?;
+        .context("Failed to save index history file")?;
 
     Ok(file_index)
 }

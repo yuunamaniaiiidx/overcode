@@ -24,8 +24,8 @@ impl Storage {
             fs::create_dir_all(&overcode_dir)?;
         }
         
-        // historyディレクトリを作成
-        let history_dir = overcode_dir.join("history");
+        // index_historyディレクトリを作成
+        let history_dir = overcode_dir.join("index_history");
         if !history_dir.exists() {
             fs::create_dir_all(&history_dir)?;
         }
@@ -40,12 +40,12 @@ impl Storage {
     }
 
     pub fn load_meta(&self, hash: &str) -> anyhow::Result<Vec<SourceEntry>> {
-        let history_dir = self.overcode_dir.join("history");
+        let history_dir = self.overcode_dir.join("index_history");
         if !history_dir.exists() {
             return Ok(Vec::new());
         }
 
-        // 最新のhistoryファイルを取得
+        // 最新のindex_historyファイルを取得
         let latest_history = self.get_latest_history_path()?;
         let history_path = match latest_history {
             Some((_, path)) => path,
@@ -125,12 +125,12 @@ impl Storage {
 
     /// 最新の履歴ファイルのパスとタイムスタンプを取得する
     pub fn get_latest_history_path(&self) -> anyhow::Result<Option<(u64, PathBuf)>> {
-        let history_dir = self.overcode_dir.join("history");
+        let history_dir = self.overcode_dir.join("index_history");
         if !history_dir.exists() {
             return Ok(None);
         }
 
-        // historyディレクトリ内の.tomlファイルを列挙し、タイムスタンプが最大のものを探す
+        // index_historyディレクトリ内の.tomlファイルを列挙し、タイムスタンプが最大のものを探す
         let mut latest_file: Option<(u64, PathBuf)> = None;
         
         if let Ok(entries) = fs::read_dir(&history_dir) {
@@ -160,12 +160,12 @@ impl Storage {
     /// 最新の履歴ファイルを読み込む
     /// パス→(mtime, size, hash)のマッピングを返す
     pub fn load_index(&self) -> anyhow::Result<FileIndex> {
-        let history_dir = self.overcode_dir.join("history");
+        let history_dir = self.overcode_dir.join("index_history");
         if !history_dir.exists() {
             return Ok(FileIndex::new());
         }
 
-        // historyディレクトリ内の.tomlファイルを列挙し、タイムスタンプが最大のものを探す
+        // index_historyディレクトリ内の.tomlファイルを列挙し、タイムスタンプが最大のものを探す
         let mut latest_file: Option<(u64, PathBuf)> = None;
         
         if let Ok(entries) = fs::read_dir(&history_dir) {
@@ -254,10 +254,10 @@ impl Storage {
         Ok(FileIndex::from_hashmap(index))
     }
 
-    /// インデックスファイルをhistoryディレクトリに保存する
-    /// パス→(mtime, size, hash)のマッピングをhistory/{timestamp}.tomlとして保存
+    /// インデックスファイルをindex_historyディレクトリに保存する
+    /// パス→(mtime, size, hash)のマッピングをindex_history/{timestamp}.tomlとして保存
     pub fn save_index(&self, index: &FileIndex) -> anyhow::Result<()> {
-        let history_dir = self.overcode_dir.join("history");
+        let history_dir = self.overcode_dir.join("index_history");
         
         // タイムスタンプを取得
         let timestamp = SystemTime::now()

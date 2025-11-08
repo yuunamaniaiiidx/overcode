@@ -26,6 +26,8 @@ fn main() -> anyhow::Result<()> {
             process_index(&cli.root_dir)?;
         }
         Command::Build => {
+            config::Config::init_config(&cli.root_dir)?;
+            process_index(&cli.root_dir)?;
             process_build(&cli.root_dir)?;
         }
     }
