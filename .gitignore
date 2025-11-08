@@ -1,2 +1,13 @@
 /target
 /.overcode
+
+bazel-bin/
+bazel-genfiles/
+bazel-out/
+bazel-testlogs/
+bazel-workspace/
+bazel-workspace.lock
+BUILD
+MODULE.bazel
+MODULE.bazel.lock
+WORKSPACE

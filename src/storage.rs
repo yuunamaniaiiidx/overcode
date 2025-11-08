@@ -138,6 +138,40 @@ impl Storage {
         Ok(())
     }
 
+    /// 最新の履歴ファイルのパスとタイムスタンプを取得する
+    pub fn get_latest_history_path(&self) -> anyhow::Result<Option<(u64, PathBuf)>> {
+        let history_dir = self.overcode_dir.join("history");
+        if !history_dir.exists() {
+            return Ok(None);
+        }
+
+        // historyディレクトリ内の.tomlファイルを列挙し、タイムスタンプが最大のものを探す
+        let mut latest_file: Option<(u64, PathBuf)> = None;
+        
+        if let Ok(entries) = fs::read_dir(&history_dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if let Some(ext) = path.extension() {
+                    if ext == "toml" {
+                        if let Some(file_stem) = path.file_stem().and_then(|s| s.to_str()) {
+                            if let Ok(timestamp) = file_stem.parse::<u64>() {
+                                match latest_file {
+                                    None => latest_file = Some((timestamp, path)),
+                                    Some((latest_ts, _)) if timestamp > latest_ts => {
+                                        latest_file = Some((timestamp, path))
+                                    }
+                                    _ => {}
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(latest_file)
+    }
+
     /// 最新の履歴ファイルを読み込む
     /// パス→(mtime, size, hash)のマッピングを返す
     pub fn load_index(&self) -> anyhow::Result<FileIndex> {

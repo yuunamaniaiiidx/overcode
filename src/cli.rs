@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 pub enum Command {
     Index,
     Init,
-    Test { args: Vec<String> },
+    Build,
 }
 
 #[derive(Debug)]
@@ -78,21 +78,13 @@ impl Cli {
         let command = match args[1].as_str() {
             "index" => Command::Index,
             "init" => Command::Init,
-            "test" => {
-                // testコマンドの場合は、残りの引数を取得
-                let test_args = if args.len() > 2 {
-                    args[2..].to_vec()
-                } else {
-                    Vec::new()
-                };
-                Command::Test { args: test_args }
-            }
-            _ => anyhow::bail!("Unknown command: {}. Use 'index', 'init', or 'test'", args[1]),
+            "build" => Command::Build,
+            _ => anyhow::bail!("Unknown command: {}. Use 'index', 'init', or 'build'", args[1]),
         };
 
-        // initコマンドとtestコマンドの場合は設定ファイルを必須にしない
-        let root_dir = if matches!(command, Command::Init | Command::Test { .. }) {
-            // initコマンドとtestコマンドの場合は現在のディレクトリを使用（設定ファイルは不要）
+        // initコマンドの場合は設定ファイルを必須にしない
+        let root_dir = if matches!(command, Command::Init) {
+            // initコマンドの場合は現在のディレクトリを使用（設定ファイルは不要）
             std::env::current_dir()
                 .context("Failed to get current directory")?
         } else if args.len() > 2 {
