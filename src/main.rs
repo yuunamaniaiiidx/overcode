@@ -9,10 +9,12 @@ mod processor;
 mod rust_parser;
 mod scanner;
 mod storage;
+mod test;
 
 use crate::cli::{Cli, Command};
 use crate::index_manager::process_index;
 use crate::build::process_build;
+use crate::test::process_test;
 
 fn main() -> anyhow::Result<()> {
     // 環境変数RUST_LOGが設定されている場合のみログを有効化
@@ -32,6 +34,12 @@ fn main() -> anyhow::Result<()> {
             config::Config::init_config(&cli.root_dir)?;
             process_index(&cli.root_dir)?;
             process_build(&cli.root_dir)?;
+        }
+        Command::Test => {
+            config::Config::init_config(&cli.root_dir)?;
+            process_index(&cli.root_dir)?;
+            process_build(&cli.root_dir)?;
+            process_test(&cli.root_dir)?;
         }
     }
 

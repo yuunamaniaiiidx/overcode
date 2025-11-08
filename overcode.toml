@@ -12,3 +12,7 @@ replacement = "$1.$2"
 [[mock_mappings]]
 pattern = "(.+)\\.mock\\..+\\.(.+)"
 replacement = "$1.$2"
+
+[run_test]
+command = "cargo"
+args = ["test", "{driver_file}"]

@@ -9,11 +9,26 @@ use log::info;
 pub struct Config {
     #[serde(default)]
     pub ignores: Vec<IgnoreEntry>,
+    #[serde(default)]
+    pub driver_mappings: Vec<MappingEntry>,
+    pub run_test: Option<RunTestConfig>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct IgnoreEntry {
     pub path: String,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct MappingEntry {
+    pub pattern: String,
+    pub replacement: String,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct RunTestConfig {
+    pub command: String,
+    pub args: Vec<String>,
 }
 
 pub struct IgnorePattern {
@@ -145,6 +160,8 @@ impl Config {
             // 設定ファイルが存在しない場合は空の設定を返す
             return Ok(Config {
                 ignores: Vec::new(),
+                driver_mappings: Vec::new(),
+                run_test: None,
             });
         }
         

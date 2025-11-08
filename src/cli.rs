@@ -6,6 +6,7 @@ pub enum Command {
     Index,
     Init,
     Build,
+    Test,
 }
 
 #[derive(Debug)]
@@ -79,7 +80,8 @@ impl Cli {
             "index" => Command::Index,
             "init" => Command::Init,
             "build" => Command::Build,
-            _ => anyhow::bail!("Unknown command: {}. Use 'index', 'init', or 'build'", args[1]),
+            "test" => Command::Test,
+            _ => anyhow::bail!("Unknown command: {}. Use 'index', 'init', 'build', or 'test'", args[1]),
         };
 
         // initコマンドの場合は設定ファイルを必須にしない
