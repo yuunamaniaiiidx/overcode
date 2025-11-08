@@ -15,4 +15,4 @@ replacement = "$1.$2"
 
 [run_test]
 command = "cargo"
-args = ["test", "{driver_file}"]
+args = ["test", "--manifest-path", "{builds_dir}/Cargo.toml", "{driver_file}"]

@@ -37,8 +37,8 @@ fn main() -> anyhow::Result<()> {
         }
         Command::Test => {
             config::Config::init_config(&cli.root_dir)?;
-            process_index(&cli.root_dir)?;
-            process_build(&cli.root_dir)?;
+            // process_index(&cli.root_dir)?;
+            // process_build(&cli.root_dir)?;
             process_test(&cli.root_dir)?;
         }
     }

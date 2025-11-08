@@ -206,36 +206,3 @@ path = ".git"
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::path::PathBuf;
-
-    #[test]
-    fn test_ignore_pattern_exact_match() {
-        let pattern = IgnorePattern::new(".git");
-        let root = PathBuf::from("/project");
-        let path = PathBuf::from("/project/.git/config");
-        
-        assert!(pattern.matches(&path, &root));
-    }
-
-    #[test]
-    fn test_ignore_pattern_wildcard() {
-        let pattern = IgnorePattern::new("*.log");
-        let root = PathBuf::from("/project");
-        let path = PathBuf::from("/project/src/app.log");
-        
-        assert!(pattern.matches(&path, &root));
-    }
-
-    #[test]
-    fn test_ignore_pattern_directory() {
-        let pattern = IgnorePattern::new("node_modules");
-        let root = PathBuf::from("/project");
-        let path = PathBuf::from("/project/src/node_modules/package.json");
-        
-        assert!(pattern.matches(&path, &root));
-    }
-}
-

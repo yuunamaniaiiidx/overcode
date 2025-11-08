@@ -4,19 +4,18 @@ use std::fs;
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 use crate::storage::Storage;
-use log::{info, warn};
 
 /// build処理を実行する
-/// 最新のindex_historyデータをもとに、.overcode/builds配下に元のファイル構造を再現する
+/// 最新のhistoryデータをもとに、.overcode/builds配下に元のファイル構造を再現する
 pub fn process_build(root_dir: &Path) -> anyhow::Result<()> {
     let storage = Storage::new(root_dir)?;
 
-    // 最新のindex_historyファイルを取得
+    // 最新のhistoryファイルを取得
     let index = storage.load_index()
-        .context("Failed to load latest index history file")?;
+        .context("Failed to load latest history file")?;
     
     if index.len() == 0 {
-        anyhow::bail!("No index history found. Please run 'index' command first.");
+        anyhow::bail!("No history found. Please run 'index' command first.");
     }
 
     // buildsディレクトリを作成
@@ -44,7 +43,7 @@ pub fn process_build(root_dir: &Path) -> anyhow::Result<()> {
     for (path, (_mtime, size, hash, _deps)) in index.iter() {
         let blob_path = blobs_dir.join(hash);
         if !blob_path.exists() {
-            warn!("blob not found for hash {} (path: {})", hash, path);
+            eprintln!("Warning: blob not found for hash {} (path: {})", hash, path);
             continue;
         }
 
@@ -112,7 +111,7 @@ pub fn process_build(root_dir: &Path) -> anyhow::Result<()> {
     storage.save_build_history(&build_files)
         .context("Failed to save build history")?;
 
-    info!("Build completed: {} files copied, {} files skipped", copied, skipped);
+    println!("Build completed: {} files copied, {} files skipped", copied, skipped);
     Ok(())
 }
 

@@ -42,17 +42,27 @@ fn execute_test_command(
     driver_file: &str,
     root_dir: &Path,
 ) -> anyhow::Result<()> {
-    // args内の{driver_file}を置換
+    // .overcode/buildsディレクトリのパスを取得
+    let builds_dir = root_dir.join(".overcode").join("builds");
+    let builds_dir_str = builds_dir.display().to_string();
+    let root_dir_str = root_dir.display().to_string();
+    
+    // args内の{driver_file}、{root_dir}、{builds_dir}を置換
     let processed_args: Vec<String> = args
         .iter()
-        .map(|arg| arg.replace("{driver_file}", driver_file))
+        .map(|arg| {
+            arg.replace("{driver_file}", driver_file)
+               .replace("{root_dir}", &root_dir_str)
+               .replace("{builds_dir}", &builds_dir_str)
+        })
         .collect();
     
-    info!("Executing: {} {:?}", command, processed_args);
+    info!("Executing: {} {:?} (from {:?})", command, processed_args, builds_dir);
     
+    // .overcode/buildsディレクトリからテストを実行
     let output = Command::new(command)
         .args(&processed_args)
-        .current_dir(root_dir)
+        .current_dir(&builds_dir)
         .output()
         .with_context(|| format!("Failed to execute command: {}", command))?;
     
