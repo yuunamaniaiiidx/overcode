@@ -8,16 +8,17 @@ use toml::Value;
 pub fn generate_build_files(
     root_dir: &Path,
     history_path: &Path,
+    timestamp: u64,
 ) -> Result<(PathBuf, PathBuf)> {
     // historyファイルを読み込む
     let content = fs::read_to_string(history_path)?;
     let value: Value = toml::from_str(&content)?;
 
-    // builds/v1ディレクトリを作成
+    // builds/{timestamp}ディレクトリを作成
     let overcode_dir = root_dir.join(".overcode");
-    let builds_dir = overcode_dir.join("builds").join("v1");
+    let builds_dir = overcode_dir.join("builds").join(timestamp.to_string());
     
-    // 既存のbuilds/v1ディレクトリをクリーンアップ（シンボリックリンクを削除）
+    // 既存のbuilds/{timestamp}ディレクトリをクリーンアップ（シンボリックリンクを削除）
     if builds_dir.exists() {
         remove_dir_contents(&builds_dir)?;
     }
@@ -56,7 +57,7 @@ pub fn generate_build_files(
         }
         
         // 相対パスでシンボリックリンクを作成
-        // builds/v1/src/main.rs から ../../{hash} へのリンク
+        // builds/{timestamp}/src/main.rs から ../../{hash} へのリンク
         let link_depth = path.matches('/').count() + 1;
         let relative_hash_path = format!("{}../{}", "../".repeat(link_depth), hash);
         symlink(&relative_hash_path, &link_path)?;
@@ -78,7 +79,7 @@ pub fn generate_build_files(
         for (path, _) in &file_entries {
             // パスをBAZEL形式に変換（パス区切り文字を統一）
             let normalized_path = path.replace('\\', "/");
-            // v1ディレクトリがワークスペースルートなので、相対パスで参照
+            // {timestamp}ディレクトリがワークスペースルートなので、相対パスで参照
             build_content.push_str(&format!("        \"{}\",\n", normalized_path));
         }
         build_content.push_str("    ],\n");
@@ -94,9 +95,9 @@ pub fn generate_build_files(
     let workspace_content = "# Generated WORKSPACE file\n# DO NOT EDIT MANUALLY\n\nworkspace(name = \"overcode\")\n";
     fs::write(&workspace_path, workspace_content)?;
     
-    // builds/v1ディレクトリにもWORKSPACEファイルを配置（BAZELがbuilds/v1から実行されるため）
-    let workspace_v1_path = builds_dir.join("WORKSPACE");
-    fs::write(&workspace_v1_path, workspace_content)?;
+    // builds/{timestamp}ディレクトリにもWORKSPACEファイルを配置（BAZELがbuilds/{timestamp}から実行されるため）
+    let workspace_timestamp_path = builds_dir.join("WORKSPACE");
+    fs::write(&workspace_timestamp_path, workspace_content)?;
 
     Ok((build_file_path, workspace_path))
 }
