@@ -1,8 +1,10 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use std::fs;
 use std::os::unix::fs::symlink;
 use std::path::{Path, PathBuf};
+use std::process::Command as ProcessCommand;
 use toml::Value;
+use crate::storage::Storage;
 
 /// BAZEL BUILDファイルとWORKSPACEファイルを生成する
 pub fn generate_build_files(
@@ -122,5 +124,54 @@ fn remove_dir_contents(dir: &Path) -> Result<()> {
     }
     
     Ok(())
+}
+
+/// Buildコマンドの処理を実行する
+/// 最新のhistoryファイルを取得し、BUILDファイルとWORKSPACEファイルを生成してBAZELビルドを実行する
+pub fn process_build(root_dir: &Path) -> Result<()> {
+    // 最新のhistoryファイルを取得
+    let storage = Storage::new(root_dir)?;
+    let latest_history = storage.get_latest_history_path()?;
+    
+    match latest_history {
+        Some((_timestamp, history_path)) => {
+            // BUILDファイルとWORKSPACEファイルを生成
+            let (build_file_path, workspace_path) = generate_build_files(
+                root_dir,
+                &history_path,
+            )?;
+            
+            println!("Generated BUILD file at: {:?}", build_file_path);
+            println!("Generated WORKSPACE file at: {:?}", workspace_path);
+            
+            // BAZELコマンドを実行（.overcode/buildsディレクトリから）
+            let builds_dir = root_dir.join(".overcode").join("builds");
+            
+            let output = ProcessCommand::new("bazel")
+                .arg("build")
+                .arg("//:sources")
+                .current_dir(&builds_dir)
+                .output()
+                .context("Failed to execute bazel command")?;
+            
+            // 標準出力と標準エラー出力を表示
+            if !output.stdout.is_empty() {
+                println!("{}", String::from_utf8_lossy(&output.stdout));
+            }
+            if !output.stderr.is_empty() {
+                eprintln!("{}", String::from_utf8_lossy(&output.stderr));
+            }
+            
+            if !output.status.success() {
+                anyhow::bail!("BAZEL build failed with exit code: {:?}", output.status.code());
+            }
+            
+            println!("BAZEL build completed successfully");
+            Ok(())
+        }
+        None => {
+            anyhow::bail!("No history file found. Please run 'index' command first.");
+        }
+    }
 }
 
