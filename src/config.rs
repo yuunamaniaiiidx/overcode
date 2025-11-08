@@ -3,6 +3,7 @@ use serde::Deserialize;
 use std::path::Path;
 use std::fs;
 use std::io::Write;
+use log::info;
 
 #[derive(Debug, Deserialize)]
 pub struct Config {
@@ -170,11 +171,11 @@ path = ".git"
         let config_path = root_dir.join("overcode.toml");
 
         if config_path.exists() {
-            println!("設定ファイルは既に存在します: {:?}", config_path);
+            info!("設定ファイルは既に存在します: {:?}", config_path);
             return Ok(());
         }
 
-        println!("設定ファイルを作成します: {:?}", config_path);
+        info!("設定ファイルを作成します: {:?}", config_path);
         let template = Self::get_template_content();
         
         let mut file = fs::File::create(&config_path)
@@ -183,7 +184,7 @@ path = ".git"
         file.write_all(template.as_bytes())
             .with_context(|| format!("Failed to write config file: {:?}", config_path))?;
 
-        println!("設定ファイルを作成しました: {:?}", config_path);
+        info!("設定ファイルを作成しました: {:?}", config_path);
         Ok(())
     }
 }

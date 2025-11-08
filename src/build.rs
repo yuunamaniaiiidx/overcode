@@ -4,6 +4,7 @@ use std::fs;
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 use crate::storage::Storage;
+use log::{info, warn};
 
 /// build処理を実行する
 /// 最新のindex_historyデータをもとに、.overcode/builds配下に元のファイル構造を再現する
@@ -43,7 +44,7 @@ pub fn process_build(root_dir: &Path) -> anyhow::Result<()> {
     for (path, (_mtime, size, hash, _deps)) in index.iter() {
         let blob_path = blobs_dir.join(hash);
         if !blob_path.exists() {
-            eprintln!("Warning: blob not found for hash {} (path: {})", hash, path);
+            warn!("blob not found for hash {} (path: {})", hash, path);
             continue;
         }
 
@@ -111,7 +112,7 @@ pub fn process_build(root_dir: &Path) -> anyhow::Result<()> {
     storage.save_build_history(&build_files)
         .context("Failed to save build history")?;
 
-    println!("Build completed: {} files copied, {} files skipped", copied, skipped);
+    info!("Build completed: {} files copied, {} files skipped", copied, skipped);
     Ok(())
 }
 

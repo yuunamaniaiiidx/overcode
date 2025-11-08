@@ -8,6 +8,7 @@ use crate::hash;
 use crate::rust_parser;
 use crate::scanner::FileEntry;
 use crate::storage::Storage;
+use log::info;
 
 /// パスリストをソートして重複を除去する
 pub fn normalize_paths(mut paths: Vec<String>) -> Vec<String> {
@@ -160,7 +161,7 @@ pub fn process_hash_group(
 
     // 新しいハッシュ、または新しいパスの場合のみ処理
     let updated_metadata = if known_paths.is_empty() || has_new_paths {
-        println!("Processing hash: {} ({} paths)", &hash[..8], paths.len());
+        info!("Processing hash: {} ({} paths)", &hash[..8], paths.len());
 
         // ファイル内容を読み込む（同じハッシュなら内容は同じなので1つだけ読み込む）
         let content = fs::read(&file_path)

@@ -6,26 +6,27 @@ use crate::file_index::FileIndex;
 use crate::processor;
 use crate::scanner;
 use crate::storage::Storage;
+use log::info;
 
 /// インデックスの処理を実行する
 /// 設定ファイルの読み込み、ディレクトリのスキャン、前回実行情報の読み込み、
 /// ファイル処理、メタデータ更新、保存を行う
 /// 戻り値: file_index
 pub fn process_index(root_dir: &Path) -> anyhow::Result<FileIndex> {
-    println!("Root directory: {:?}", root_dir);
+    info!("Root directory: {:?}", root_dir);
 
     // 設定ファイルを読み込む
     let config = config::Config::load_from_root(root_dir)?;
     let ignore_patterns = config.get_ignore_patterns();
     if !ignore_patterns.is_empty() {
-        println!("Loaded {} ignore pattern(s)", ignore_patterns.len());
+        info!("Loaded {} ignore pattern(s)", ignore_patterns.len());
     }
 
-    println!("Scanning directory: {:?}", root_dir);
+    info!("Scanning directory: {:?}", root_dir);
 
     // ディレクトリをスキャン
     let files = scanner::scan_directory(root_dir, &ignore_patterns)?;
-    println!("Found {} files to process", files.len());
+    info!("Found {} files to process", files.len());
 
     // .overcodeディレクトリの準備
     let storage = Storage::new(root_dir)?;
@@ -33,7 +34,7 @@ pub fn process_index(root_dir: &Path) -> anyhow::Result<FileIndex> {
     // 前回実行情報を取得（最新のindex_historyファイルから読み込む）
     let mut file_index = storage.load_index()
         .context("Failed to load latest index history file")?;
-    println!("Loaded {} entries from latest index history file", file_index.len());
+    info!("Loaded {} entries from latest index history file", file_index.len());
 
     // ファイル処理とハッシュ計算
     let file_hash_index = FileHashIndex::from_files(&files, &file_index)?;
