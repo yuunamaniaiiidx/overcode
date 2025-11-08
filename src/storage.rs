@@ -33,11 +33,6 @@ impl Storage {
         Ok(Self { overcode_dir })
     }
 
-    /// .overcodeディレクトリのパスを取得
-    pub fn overcode_dir(&self) -> &Path {
-        &self.overcode_dir
-    }
-
     pub fn load_meta(&self, hash: &str) -> anyhow::Result<Vec<SourceEntry>> {
         let meta_path = self.overcode_dir.join(format!("{}.toml", hash));
         if !meta_path.exists() {
@@ -112,55 +107,6 @@ impl Storage {
         Ok(())
     }
 
-    /// ハッシュからファイル内容を読み込む
-    pub fn load_file(&self, hash: &str) -> anyhow::Result<Vec<u8>> {
-        let file_path = self.overcode_dir.join(hash);
-        if !file_path.exists() {
-            return Err(anyhow::anyhow!("File not found for hash: {}", hash));
-        }
-        let content = fs::read(&file_path)?;
-        Ok(content)
-    }
-
-    /// 最新の履歴ファイルの内容（String）とタイムスタンプを取得
-    pub fn load_latest_history_content(&self) -> anyhow::Result<(u64, String)> {
-        let history_dir = self.overcode_dir.join("history");
-        if !history_dir.exists() {
-            return Err(anyhow::anyhow!("History directory does not exist"));
-        }
-
-        // historyディレクトリ内の.tomlファイルを列挙し、タイムスタンプが最大のものを探す
-        let mut latest_file: Option<(u64, PathBuf)> = None;
-        
-        if let Ok(entries) = fs::read_dir(&history_dir) {
-            for entry in entries.flatten() {
-                let path = entry.path();
-                if let Some(ext) = path.extension() {
-                    if ext == "toml" {
-                        if let Some(file_stem) = path.file_stem().and_then(|s| s.to_str()) {
-                            if let Ok(timestamp) = file_stem.parse::<u64>() {
-                                match latest_file {
-                                    None => latest_file = Some((timestamp, path)),
-                                    Some((latest_ts, _)) if timestamp > latest_ts => {
-                                        latest_file = Some((timestamp, path))
-                                    }
-                                    _ => {}
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        let (timestamp, index_path) = match latest_file {
-            Some((ts, path)) => (ts, path),
-            None => return Err(anyhow::anyhow!("No history file found")),
-        };
-
-        let content = fs::read_to_string(&index_path)?;
-        Ok((timestamp, content))
-    }
 
     pub fn save_meta(&self, hash: &str, entries: &[SourceEntry]) -> anyhow::Result<()> {
         let meta_path = self.overcode_dir.join(format!("{}.toml", hash));
@@ -190,26 +136,6 @@ impl Storage {
         let toml_string = toml::to_string_pretty(&Value::Table(toml_value))?;
         fs::write(&meta_path, toml_string)?;
         Ok(())
-    }
-
-    /// インデックスファイルが存在するかチェックする（historyディレクトリ内にファイルがあるか）
-    pub fn index_exists(&self) -> bool {
-        let history_dir = self.overcode_dir.join("history");
-        if !history_dir.exists() {
-            return false;
-        }
-        
-        // historyディレクトリ内に.tomlファイルが存在するかチェック
-        if let Ok(entries) = fs::read_dir(&history_dir) {
-            for entry in entries.flatten() {
-                if let Some(ext) = entry.path().extension() {
-                    if ext == "toml" {
-                        return true;
-                    }
-                }
-            }
-        }
-        false
     }
 
     /// 最新の履歴ファイルを読み込む

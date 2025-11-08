@@ -1,2 +1,6 @@
 [[ignores]]
 path = ".git"
+
+[[file_mappings]]
+pattern = "(.+)\\.mock\\..+\\.(.+)"
+replacement = "$1.$2"
