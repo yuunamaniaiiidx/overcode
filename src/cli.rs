@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 pub enum Command {
     Index,
     Build,
+    Test,
 }
 
 #[derive(Debug)]
@@ -71,13 +72,14 @@ impl Cli {
         let args: Vec<String> = std::env::args().collect();
         
         if args.len() < 2 {
-            anyhow::bail!("Usage: {} <index|build> [config_file]", args[0]);
+            anyhow::bail!("Usage: {} <index|build|test> [config_file]", args[0]);
         }
 
         let command = match args[1].as_str() {
             "index" => Command::Index,
             "build" => Command::Build,
-            _ => anyhow::bail!("Unknown command: {}. Use 'index' or 'build'", args[1]),
+            "test" => Command::Test,
+            _ => anyhow::bail!("Unknown command: {}. Use 'index', 'build', or 'test'", args[1]),
         };
 
         let root_dir = if args.len() > 2 {

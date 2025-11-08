@@ -2,6 +2,7 @@ use anyhow::{Context, Result};
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 use toml::Value;
 use crate::storage::Storage;
 
@@ -26,6 +27,57 @@ pub fn process_build(
     
     println!("Files expanded to: {:?}", builds_dir);
     
+    // Cargo.lockファイルの処理
+    // 既存のCargo.lockが新しいバージョンのクレートを含んでいる可能性があるため、
+    // Cargo.tomlから新しいCargo.lockを生成する（BazelのCargoバージョンと互換性のあるバージョンが選択される）
+    let cargo_toml_path = builds_dir.join("Cargo.toml");
+    let target_cargo_lock = builds_dir.join("Cargo.lock");
+    
+    if cargo_toml_path.exists() {
+        // 既存のCargo.lockを削除（新しいバージョンのクレートが含まれている可能性があるため）
+        if target_cargo_lock.exists() {
+            fs::remove_file(&target_cargo_lock)
+                .context("Failed to remove existing Cargo.lock")?;
+        }
+        
+        // Cargo.tomlから新しいCargo.lockを生成
+        // これにより、Bazelが使用するCargoのバージョンと互換性のあるバージョンが選択される
+        let generate_output = Command::new("cargo")
+            .arg("generate-lockfile")
+            .arg("--manifest-path")
+            .arg(&cargo_toml_path)
+            .current_dir(&builds_dir)
+            .output()
+            .context("Failed to execute cargo generate-lockfile")?;
+        
+        if !generate_output.status.success() {
+            // cargo generate-lockfileが失敗した場合、警告を出して続行
+            eprintln!("Warning: Failed to generate Cargo.lock: {}", String::from_utf8_lossy(&generate_output.stderr));
+            eprintln!("crate_universe will attempt to resolve dependencies automatically");
+        } else {
+            println!("Cargo.lock generated from Cargo.toml for Bazel compatibility");
+            
+            // Cargo.lockファイルを読み込んで、globsetのバージョンを0.4.17以下に制限
+            // globset-0.4.18はedition2024を要求するため、BazelのCargoバージョンと互換性がない
+            if target_cargo_lock.exists() {
+                let lock_content = fs::read_to_string(&target_cargo_lock)
+                    .context("Failed to read Cargo.lock")?;
+                
+                // globset-0.4.18を0.4.17に置き換え
+                let fixed_content = lock_content
+                    .replace("version = \"0.4.18\"", "version = \"0.4.17\"")
+                    .replace("globset 0.4.18", "globset 0.4.17");
+                
+                if fixed_content != lock_content {
+                    fs::write(&target_cargo_lock, fixed_content)
+                        .context("Failed to write fixed Cargo.lock")?;
+                    println!("Fixed globset version in Cargo.lock to 0.4.17 for Bazel compatibility");
+                    println!("Note: This may cause dependency resolution issues, but is necessary for Bazel compatibility");
+                }
+            }
+        }
+    }
+    
     // BUILDファイルを生成
     let build_content = generate_build_file(&history_content, storage)
         .context("Failed to generate BUILD file")?;
@@ -36,6 +88,44 @@ pub fn process_build(
         .context("Failed to write BUILD file")?;
     
     println!("BUILD file written to: {:?}", build_path);
+    
+    // MODULE.bazelファイルを生成（Bazelワークスペースに必要）
+    let module_bazel_path = builds_dir.join("MODULE.bazel");
+    
+    // Cargo.tomlが存在するか確認して、crate_universeの設定を追加
+    let cargo_toml_path = builds_dir.join("Cargo.toml");
+    let has_cargo_toml = cargo_toml_path.exists();
+    
+    let module_bazel_content = if has_cargo_toml {
+        // Cargo.tomlがある場合、crate_universeを使って依存関係を解決
+        // 空のCargo.lockファイルを指定して、crate_universeに自動解決させる
+        // これにより、Bazelが使用するCargoのバージョンと互換性のあるバージョンが選択される
+        r#"module(name = "overcode")
+
+bazel_dep(name = "rules_rust", version = "0.67.0")
+
+crate = use_extension("@rules_rust//crate_universe:extension.bzl", "crate")
+
+crate.from_cargo(
+    name = "crates",
+    cargo_lockfile = "//:Cargo.lock",
+    manifests = ["//:Cargo.toml"],
+)
+
+use_repo(crate, "crates")
+"#
+    } else {
+        // Cargo.tomlがない場合、基本的な設定のみ
+        r#"module(name = "overcode")
+
+bazel_dep(name = "rules_rust", version = "0.67.0")
+"#
+    };
+    
+    fs::write(&module_bazel_path, module_bazel_content)
+        .context("Failed to write MODULE.bazel file")?;
+    
+    println!("MODULE.bazel file written to: {:?}", module_bazel_path);
     println!("Build operation completed!");
     
     Ok(())
@@ -316,5 +406,82 @@ fn calculate_relative_path(from: &Path, to: &Path) -> Result<PathBuf> {
     }
     
     Ok(relative)
+}
+
+/// テスト操作を実行する
+pub fn process_test(
+    storage: &Storage,
+) -> Result<()> {
+    // 最新のhistoryファイルの内容とタイムスタンプを取得
+    let (timestamp, _) = storage.load_latest_history_content()
+        .context("Failed to load latest history file")?;
+    
+    println!("Testing from history file with timestamp: {}", timestamp);
+    
+    // .overcode/builds/{timestamp}/ディレクトリとBUILDファイルの存在を確認
+    let builds_dir = storage.overcode_dir().join("builds").join(timestamp.to_string());
+    let build_path = builds_dir.join("BUILD");
+    
+    if !builds_dir.exists() {
+        return Err(anyhow::anyhow!("Build directory not found: {:?}. Please run 'build' command first.", builds_dir));
+    }
+    
+    if !build_path.exists() {
+        return Err(anyhow::anyhow!("BUILD file not found: {:?}. Please run 'build' command first.", build_path));
+    }
+    
+    println!("Found build directory: {:?}", builds_dir);
+    println!("Found BUILD file: {:?}", build_path);
+    
+    // MODULE.bazelが存在する場合、先にbazel buildを実行してモジュールを解決
+    // これにより、モジュール拡張が正しく初期化される
+    let module_bazel_path = builds_dir.join("MODULE.bazel");
+    if module_bazel_path.exists() {
+        println!("Found MODULE.bazel, running bazel build to resolve modules...");
+        let build_output = Command::new("bazel")
+            .arg("build")
+            .arg("//...")
+            .current_dir(&builds_dir)
+            .output()
+            .context("Failed to execute bazel build command")?;
+        
+        if !build_output.stdout.is_empty() {
+            print!("{}", String::from_utf8_lossy(&build_output.stdout));
+        }
+        if !build_output.stderr.is_empty() {
+            eprint!("{}", String::from_utf8_lossy(&build_output.stderr));
+        }
+        
+        // buildが失敗した場合はエラーを返す（モジュール解決に失敗している可能性がある）
+        if !build_output.status.success() {
+            return Err(anyhow::anyhow!("Bazel build command failed with exit code: {:?}. This may indicate module resolution issues.", build_output.status.code()));
+        }
+    }
+    
+    // builds/{timestamp}/ディレクトリでbazel test //...コマンドを実行
+    println!("Running bazel test //... in {:?}", builds_dir);
+    
+    let output = Command::new("bazel")
+        .arg("test")
+        .arg("//...")
+        .current_dir(&builds_dir)
+        .output()
+        .context("Failed to execute bazel test command")?;
+    
+    // 標準出力と標準エラー出力を表示
+    if !output.stdout.is_empty() {
+        print!("{}", String::from_utf8_lossy(&output.stdout));
+    }
+    if !output.stderr.is_empty() {
+        eprint!("{}", String::from_utf8_lossy(&output.stderr));
+    }
+    
+    if !output.status.success() {
+        return Err(anyhow::anyhow!("Bazel test command failed with exit code: {:?}", output.status.code()));
+    }
+    
+    println!("Test operation completed!");
+    
+    Ok(())
 }
 

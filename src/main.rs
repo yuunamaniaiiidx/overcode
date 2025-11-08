@@ -12,7 +12,7 @@ mod scanner;
 mod storage;
 
 use cli::{Cli, Command};
-use build::process_build;
+use build::{process_build, process_test};
 use index_manager::process_index;
 use storage::Storage;
 
@@ -44,6 +44,11 @@ fn main() -> anyhow::Result<()> {
         Command::Build => {
             process_index(&storage, &files, &cli.root_dir)?;
             process_build(&storage)?;
+        }
+        Command::Test => {
+            process_index(&storage, &files, &cli.root_dir)?;
+            process_build(&storage)?;
+            process_test(&storage)?;
         }
     }
 
