@@ -162,18 +162,6 @@ impl Config {
     fn get_template_content() -> &'static str {
         r#"[[ignores]]
 path = ".git"
-
-[[src_mappings]]
-pattern = "(.+)\\.src\\..+\\.(.+)"
-replacement = "$1.$2"
-
-[[driver_mappings]]
-pattern = "(.+)\\.driver\\..+\\.(.+)"
-replacement = "$1.$2"
-
-[[mock_mappings]]
-pattern = "(.+)\\.mock\\..+\\.(.+)"
-replacement = "$1.$2"
 "#
     }
 
