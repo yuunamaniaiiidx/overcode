@@ -1,4 +1,4 @@
-mod bazel_builder;
+mod build;
 mod cli;
 mod config;
 mod file_hash_index;
@@ -12,7 +12,7 @@ mod storage;
 
 use crate::cli::{Cli, Command};
 use crate::index_manager::process_index;
-use crate::bazel_builder::{process_build, process_test_target};
+use crate::build::process_build;
 
 fn main() -> anyhow::Result<()> {
     let cli = Cli::parse()?;
@@ -26,14 +26,7 @@ fn main() -> anyhow::Result<()> {
             process_index(&cli.root_dir)?;
         }
         Command::Build => {
-            config::Config::init_config(&cli.root_dir)?;
-            process_index(&cli.root_dir)?;
             process_build(&cli.root_dir)?;
-        }
-        Command::Test => {
-            config::Config::init_config(&cli.root_dir)?;
-            process_index(&cli.root_dir)?;
-            process_test_target(&cli.root_dir)?;
         }
     }
 

@@ -295,5 +295,106 @@ impl Storage {
         fs::write(&history_path, toml_string)?;
         Ok(())
     }
+
+    /// build_historyの最新ファイルを読み込む
+    /// パス→(mtime, size, hash)のマッピングを返す
+    pub fn load_build_history(&self) -> anyhow::Result<HashMap<String, (u64, u64, String)>> {
+        let build_history_dir = self.overcode_dir.join("build_history");
+        if !build_history_dir.exists() {
+            return Ok(HashMap::new());
+        }
+
+        // build_historyディレクトリ内の.tomlファイルを列挙し、タイムスタンプが最大のものを探す
+        let mut latest_file: Option<(u64, PathBuf)> = None;
+        
+        if let Ok(entries) = fs::read_dir(&build_history_dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if let Some(ext) = path.extension() {
+                    if ext == "toml" {
+                        if let Some(file_stem) = path.file_stem().and_then(|s| s.to_str()) {
+                            if let Ok(timestamp) = file_stem.parse::<u64>() {
+                                match latest_file {
+                                    None => latest_file = Some((timestamp, path)),
+                                    Some((latest_ts, _)) if timestamp > latest_ts => {
+                                        latest_file = Some((timestamp, path))
+                                    }
+                                    _ => {}
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        let index_path = match latest_file {
+            Some((_, path)) => path,
+            None => return Ok(HashMap::new()),
+        };
+
+        let content = fs::read_to_string(&index_path)?;
+        let value: Value = toml::from_str(&content)?;
+
+        let mut result = HashMap::new();
+        if let Some(files) = value.get("files").and_then(|v| v.as_table()) {
+            for (path, file_data) in files {
+                if let Some(table) = file_data.as_table() {
+                    let mtime = table
+                        .get("mtime")
+                        .and_then(|v| v.as_integer())
+                        .map(|i| i as u64)
+                        .unwrap_or(0);
+                    let size = table
+                        .get("size")
+                        .and_then(|v| v.as_integer())
+                        .map(|i| i as u64)
+                        .unwrap_or(0);
+                    let hash = table
+                        .get("hash")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string())
+                        .unwrap_or_default();
+                    
+                    if !hash.is_empty() {
+                        result.insert(path.clone(), (mtime, size, hash));
+                    }
+                }
+            }
+        }
+
+        Ok(result)
+    }
+
+    /// build_historyに保存する
+    /// build_files: パス→(mtime, size, hash)のマッピング
+    pub fn save_build_history(&self, build_files: &HashMap<String, (u64, u64, String)>) -> anyhow::Result<()> {
+        let build_history_dir = self.overcode_dir.join("build_history");
+        if !build_history_dir.exists() {
+            fs::create_dir_all(&build_history_dir)?;
+        }
+
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_err(|e| anyhow::anyhow!("Failed to get timestamp: {}", e))?
+            .as_secs();
+        let build_history_path = build_history_dir.join(format!("{}.toml", timestamp));
+        
+        let mut toml_value = toml::map::Map::new();
+        let mut files_table = toml::map::Map::new();
+
+        for (path, (mtime, size, hash)) in build_files.iter() {
+            let mut file_table = toml::map::Map::new();
+            file_table.insert("mtime".to_string(), Value::Integer(*mtime as i64));
+            file_table.insert("size".to_string(), Value::Integer(*size as i64));
+            file_table.insert("hash".to_string(), Value::String(hash.clone()));
+            files_table.insert(path.clone(), Value::Table(file_table));
+        }
+
+        toml_value.insert("files".to_string(), Value::Table(files_table));
+        let toml_string = toml::to_string_pretty(&Value::Table(toml_value))?;
+        fs::write(&build_history_path, toml_string)?;
+        Ok(())
+    }
 }
 
