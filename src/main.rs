@@ -5,7 +5,7 @@ mod file_hash_index;
 mod file_index;
 mod hash;
 mod index_manager;
-mod podman;
+mod podman_init;
 mod processor;
 mod rust_parser;
 mod scanner;
@@ -19,11 +19,12 @@ fn main() -> anyhow::Result<()> {
 
     match cli.command {
         Command::Init => {
-            // initコマンドの場合は設定ファイルの初期化とPodmanの初期化を実行
             config::Config::init_config(&cli.root_dir)?;
-            podman::init_podman()?;
+            podman_init::init_podman()?;
         }
         Command::Index => {
+            config::Config::init_config(&cli.root_dir)?;
+            podman_init::init_podman()?;
             process_index(&cli.root_dir)?;
         }
     }
