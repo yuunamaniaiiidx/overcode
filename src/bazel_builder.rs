@@ -107,7 +107,7 @@ pub fn generate_build_files(
                 if let Some(hash) = table.get("hash").and_then(|v| v.as_str()) {
                     if !hash.is_empty() {
                         // ハッシュファイルが存在するか確認
-                        let hash_file_path = overcode_dir.join(hash);
+                        let hash_file_path = overcode_dir.join("blobs").join(hash);
                         if hash_file_path.exists() {
                             file_entries.push((path.clone(), hash.to_string()));
                         }
@@ -132,15 +132,15 @@ pub fn generate_build_files(
         }
         
         // 相対パスでシンボリックリンクを作成
-        // builds/src/main.rs から ../{hash} へのリンク
-        // builds/Cargo.lock から ../{hash} へのリンク
+        // builds/src/main.rs から ../blobs/{hash} へのリンク
+        // builds/Cargo.lock から ../blobs/{hash} へのリンク
         let link_depth = path.matches('/').count();
         let relative_hash_path = if link_depth == 0 {
-            // ルートファイル（例：Cargo.lock）の場合、../{hash}
-            format!("../{}", hash)
+            // ルートファイル（例：Cargo.lock）の場合、../blobs/{hash}
+            format!("../blobs/{}", hash)
         } else {
-            // サブディレクトリのファイル（例：src/main.rs）の場合、../../{hash}
-            format!("{}{}", "../".repeat(link_depth + 1), hash)
+            // サブディレクトリのファイル（例：src/main.rs）の場合、../../blobs/{hash}
+            format!("{}blobs/{}", "../".repeat(link_depth + 1), hash)
         };
         symlink(&relative_hash_path, &link_path)?;
     }

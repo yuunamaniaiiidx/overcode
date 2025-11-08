@@ -30,6 +30,12 @@ impl Storage {
             fs::create_dir_all(&history_dir)?;
         }
         
+        // blobsディレクトリを作成
+        let blobs_dir = overcode_dir.join("blobs");
+        if !blobs_dir.exists() {
+            fs::create_dir_all(&blobs_dir)?;
+        }
+        
         Ok(Self { overcode_dir })
     }
 
@@ -109,7 +115,7 @@ impl Storage {
     }
 
     pub fn save_file(&self, hash: &str, content: &[u8]) -> anyhow::Result<()> {
-        let file_path = self.overcode_dir.join(hash);
+        let file_path = self.overcode_dir.join("blobs").join(hash);
         if !file_path.exists() {
             let mut file = fs::File::create(&file_path)?;
             file.write_all(content)?;
