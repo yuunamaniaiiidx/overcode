@@ -3,27 +3,77 @@ use std::path::Path;
 use std::process::Command;
 use std::io::Write;
 use regex::Regex;
+use ignore::WalkBuilder;
 use crate::config::Config;
-use crate::storage::Storage;
 use log::{info, warn};
 
 /// driver_patternsのパターンにマッチしたファイルを取得する
 /// 元のファイル名（変換前）を返すことで、{src_name}.driver.{testtitle}.rs形式のファイルを個別に実行できる
-fn find_driver_matched_files(config: &Config, storage: &Storage) -> anyhow::Result<Vec<String>> {
-    let file_index = storage.load_index()
-        .context("Failed to load index")?;
+fn find_driver_matched_files(config: &Config, root_dir: &Path) -> anyhow::Result<Vec<String>> {
+    let ignore_patterns = config.get_ignore_patterns();
+    let ignore_files = config.get_ignore_files();
     
-    let mut matched_files = Vec::new();
+    // WalkBuilderを構築
+    let mut builder = WalkBuilder::new(root_dir);
+    builder
+        .hidden(false)
+        .git_ignore(false)  // デフォルトの.gitignoreは無効化
+        .git_exclude(true);
     
-    // 各driver_patternパターンを適用
+    // 設定から読み込んだignoreファイルを追加
+    for ignore_file in ignore_files {
+        let ignore_path = root_dir.join(&ignore_file);
+        if ignore_path.exists() {
+            // WalkBuilderにignoreファイルを追加
+            if let Some(err) = builder.add_ignore(&ignore_path) {
+                return Err(anyhow::anyhow!("Failed to add ignore file {:?}: {}", ignore_path, err));
+            }
+        }
+    }
+    
+    let walker = builder.build();
+    
+    // 各driver_patternパターンをコンパイル
+    let mut compiled_patterns = Vec::new();
     for mapping in &config.driver_patterns {
         let pattern = Regex::new(&mapping.pattern)
             .with_context(|| format!("Invalid regex pattern: {}", mapping.pattern))?;
+        compiled_patterns.push(pattern);
+    }
+    
+    let mut matched_files = Vec::new();
+    
+    // ファイルシステムをスキャン
+    for result in walker {
+        let entry = result?;
+        let path = entry.path();
         
-        for (file_path, _) in file_index.iter() {
-            if pattern.is_match(file_path) {
-                // 元のファイル名（変換前）を保持して、個別に実行できるようにする
-                matched_files.push(file_path.clone());
+        // .overcodeディレクトリを除外
+        if path.components().any(|c| c.as_os_str() == ".overcode") {
+            continue;
+        }
+        
+        // ignoreパターンで除外
+        let should_ignore = ignore_patterns.iter().any(|pattern| pattern.matches(path, root_dir));
+        if should_ignore {
+            continue;
+        }
+        
+        // ファイルのみを処理
+        if !path.is_file() {
+            continue;
+        }
+        
+        // 相対パスを取得
+        let relative_path = path.strip_prefix(root_dir)?
+            .to_string_lossy()
+            .to_string();
+        
+        // driver_patternsにマッチするかチェック
+        for pattern in &compiled_patterns {
+            if pattern.is_match(&relative_path) {
+                matched_files.push(relative_path.clone());
+                break;  // 1つのパターンにマッチすれば十分
             }
         }
     }
@@ -132,10 +182,8 @@ fn execute_test_command(
 pub fn process_test(root_dir: &Path) -> anyhow::Result<()> {
     let config = Config::load_from_root(root_dir)?;
     
-    let storage = Storage::new(root_dir)?;
-    
     // driver_patternsでマッチしたファイルを取得
-    let driver_files = find_driver_matched_files(&config, &storage)?;
+    let driver_files = find_driver_matched_files(&config, root_dir)?;
     
     // command.testを優先し、なければrun_test（後方互換性）を使用
     let run_test = config.command

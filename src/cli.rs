@@ -3,9 +3,7 @@ use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Command {
-    Index,
     Init,
-    Build,
     Test,
     Run,
 }
@@ -79,12 +77,10 @@ impl Cli {
         }
 
         let command = match args[1].as_str() {
-            "index" => Command::Index,
             "init" => Command::Init,
-            "build" => Command::Build,
             "test" => Command::Test,
             "run" => Command::Run,
-            _ => anyhow::bail!("Unknown command: {}. Use 'index', 'init', 'build', 'test', or 'run'", args[1]),
+            _ => anyhow::bail!("Unknown command: {}. Use 'init', 'test', or 'run'", args[1]),
         };
 
         // runコマンドの場合のみ、--の後の引数を取得
