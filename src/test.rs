@@ -116,7 +116,14 @@ fn execute_test_command(
     info!("Executing in podman container (image: {}): {} {:?}", image, run_test.command, processed_args);
     
     // podman runコマンドを構築
-    let mut podman_args = podman_mount::build_mount_args(root_dir);
+    let root_dir_str = root_dir.display().to_string();
+    let mut podman_args = vec![
+        "run".to_string(),
+        "--rm".to_string(),
+    ];
+    podman_args.extend(podman_mount::build_mount_args(root_dir));
+    podman_args.push("-w".to_string());
+    podman_args.push(root_dir_str);
     podman_args.push(image.clone());
     podman_args.push(run_test.command.clone());
     podman_args.extend(processed_args);
@@ -199,4 +206,8 @@ pub fn process_test(root_dir: &Path) -> anyhow::Result<()> {
 #[cfg(test)]
 #[path = "test/driver/config.rs"]
 mod driver_config;
+
+#[cfg(test)]
+#[path = "test/driver/podman_mount.rs"]
+mod driver_podman_mount;
 
