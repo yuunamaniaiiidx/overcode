@@ -121,14 +121,14 @@ fn execute_test_command(
         info!("Executing in podman container (image: {}): {} {:?}", image, run_test.command, processed_args);
         
         // podman runコマンドを構築
-        // podman run --rm -v {root_dir}:{root_dir} -w {builds_dir} {image} {command} {args...}
+        // podman run --rm -v {root_dir}:{root_dir} -w {root_dir} {image} {command} {args...}
         let mut podman_args = vec![
             "run".to_string(),
             "--rm".to_string(),
             "-v".to_string(),
             format!("{}:{}", root_dir_str, root_dir_str),
             "-w".to_string(),
-            builds_dir_str.clone(),
+            root_dir_str.clone(),
             image.clone(),
             run_test.command.clone(),
         ];

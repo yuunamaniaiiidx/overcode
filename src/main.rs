@@ -35,3 +35,27 @@ fn main() -> anyhow::Result<()> {
 
     Ok(())
 }
+
+#[cfg(test)]
+#[path = "main/driver/cli.rs"]
+mod driver_cli;
+
+#[cfg(test)]
+#[path = "main/driver/config.rs"]
+mod driver_config;
+
+#[cfg(test)]
+#[path = "main/driver/podman_image.rs"]
+mod driver_podman_image;
+
+#[cfg(test)]
+#[path = "main/driver/podman_install.rs"]
+mod driver_podman_install;
+
+#[cfg(test)]
+#[path = "main/driver/run.rs"]
+mod driver_run;
+
+#[cfg(test)]
+#[path = "main/driver/test.rs"]
+mod driver_test;
