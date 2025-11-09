@@ -1,5 +1,6 @@
 use regex::Regex;
 use std::path::Path;
+use crate::config::Config;
 
 /// プロジェクト内のローカルファイル（root_dir内）への依存関係のみを抽出
 /// 標準ライブラリやサードパーティライブラリは除外する
@@ -7,6 +8,7 @@ pub fn extract_dependencies(
     file_path: &Path,
     file_content: &str,
     root_dir: &Path,
+    config: &Config,
 ) -> anyhow::Result<Vec<String>> {
     let mut deps = Vec::new();
     
@@ -52,7 +54,9 @@ pub fn extract_dependencies(
                         root_dir,
                     )?;
                     if let Some(dep) = dep_path {
-                        deps.push(dep);
+                        // パターンを適用して変換
+                        let transformed = apply_patterns(&dep, config);
+                        deps.push(transformed);
                     }
                 }
             }
@@ -70,7 +74,9 @@ pub fn extract_dependencies(
                     root_dir,
                 )?;
                 if let Some(dep) = dep_path {
-                    deps.push(dep);
+                    // パターンを適用して変換
+                    let transformed = apply_patterns(&dep, config);
+                    deps.push(transformed);
                 }
             }
         }
@@ -188,5 +194,31 @@ fn resolve_mod_declaration(
     }
     
     Ok(None)
+}
+
+/// パスに対してパターンを適用して変換する
+/// src_patterns、driver_patterns、mock_patternsの順に適用し、最初にマッチしたパターンで置換する
+fn apply_patterns(path: &str, config: &Config) -> String {
+    // 全てのパターンを順に試す
+    let all_patterns = [
+        &config.src_patterns,
+        &config.driver_patterns,
+        &config.mock_patterns,
+    ];
+    
+    for patterns in all_patterns.iter() {
+        for mapping in *patterns {
+            if let Ok(regex) = Regex::new(&mapping.pattern) {
+                if regex.is_match(path) {
+                    // キャプチャグループを使って置換
+                    let result = regex.replace(path, &mapping.resolution);
+                    return result.to_string();
+                }
+            }
+        }
+    }
+    
+    // どのパターンにもマッチしない場合は元のパスを返す
+    path.to_string()
 }
 

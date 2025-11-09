@@ -2,21 +2,26 @@
 path = ".git"
 
 [[src_patterns]]
-pattern = "(.+)\\.src\\..+\\.(.+)"
-replacement = "$1.$2"
+pattern = "(.+)/(.+)\\.src\\..+\\.(.+)"
+resolution = "$1/$2.$3"
 
 [[driver_patterns]]
-pattern = "(.+)\\.driver\\..+\\.(.+)"
-replacement = "$1.$2"
+pattern = "(.+)/(.+)\\.driver\\..+\\.(.+)"
+resolution = "$1/$2.$3"
 
 [[mock_patterns]]
-pattern = "(.+)\\.mock\\..+\\.(.+)"
-replacement = "$1.$2"
+pattern = "(.+)/(.+)\\.mock\\..+\\.(.+)"
+resolution = "$1/$2.$3"
 
 [[images]]
 name = "docker.io/library/rust:latest"
 
-[run_test]
+[command.test]
 command = "cargo"
-args = ["test", "--manifest-path", "{builds_dir}/Cargo.toml", "{driver_file}"]
+args = ["test", "--manifest-path", "Cargo.toml", "{driver_file}"]
+image = "docker.io/library/rust:latest"
+
+[command.run]
+command = "cargo"
+args = ["test", "--manifest-path", "Cargo.toml", "--tests"]
 image = "docker.io/library/rust:latest"

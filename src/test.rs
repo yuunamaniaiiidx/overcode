@@ -127,8 +127,12 @@ pub fn process_test(root_dir: &Path) -> anyhow::Result<()> {
     // driver_patternsでマッチしたファイルを取得
     let driver_files = find_driver_matched_files(&config, &storage)?;
     
-    let run_test = config.run_test
-        .ok_or_else(|| anyhow::anyhow!("[run_test] section not found in overcode.toml"))?;
+    // command.testを優先し、なければrun_test（後方互換性）を使用
+    let run_test = config.command
+        .as_ref()
+        .and_then(|c| c.test.as_ref())
+        .or_else(|| config.run_test.as_ref())
+        .ok_or_else(|| anyhow::anyhow!("[command.test] or [run_test] section not found in overcode.toml"))?;
     
     if driver_files.is_empty() {
         warn!("No files matched driver_patterns pattern. Nothing to test.");

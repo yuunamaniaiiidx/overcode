@@ -3,6 +3,7 @@ use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::UNIX_EPOCH;
+use crate::config::Config;
 use crate::file_index::FileIndex;
 use crate::hash;
 use crate::rust_parser;
@@ -41,6 +42,7 @@ pub fn extract_dependencies_with_hashes(
     content: &[u8],
     root_dir: &Path,
     file_index: &FileIndex,
+    config: &Config,
 ) -> Vec<(String, String)> {
     let mut deps = Vec::new();
     
@@ -50,6 +52,7 @@ pub fn extract_dependencies_with_hashes(
             file_path,
             &content_str,
             root_dir,
+            config,
         )
         .unwrap_or_default();
         
@@ -149,6 +152,7 @@ pub fn process_hash_group(
     root_dir: &Path,
     file_index: &FileIndex,
     path_to_new_metadata: &HashMap<String, (u64, u64)>,
+    config: &Config,
 ) -> anyhow::Result<FileIndex> {
     // パスをソートして重複を除去
     paths = normalize_paths(paths);
@@ -177,6 +181,7 @@ pub fn process_hash_group(
             &content,
             root_dir,
             file_index,
+            config,
         );
 
         // マッピングを更新（新しいFileIndexを返す）
@@ -203,6 +208,7 @@ pub fn process_all_hash_groups(
     root_dir: &Path,
     mut file_index: FileIndex,
     path_to_new_metadata: &HashMap<String, (u64, u64)>,
+    config: &Config,
 ) -> anyhow::Result<FileIndex> {
     for (hash, (paths, file_path)) in hash_to_info {
         file_index = process_hash_group(
@@ -213,6 +219,7 @@ pub fn process_all_hash_groups(
             root_dir,
             &file_index,
             path_to_new_metadata,
+            config,
         )?;
     }
     Ok(file_index)

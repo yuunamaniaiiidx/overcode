@@ -47,6 +47,7 @@ pub fn process_index(root_dir: &Path) -> anyhow::Result<FileIndex> {
         root_dir,
         file_index,
         &path_to_new_metadata,
+        &config,
     )?;
 
     // 全てのファイルのメタデータを更新

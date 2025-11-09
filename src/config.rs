@@ -10,9 +10,16 @@ pub struct Config {
     #[serde(default)]
     pub ignores: Vec<IgnoreEntry>,
     #[serde(default)]
+    pub src_patterns: Vec<MappingEntry>,
+    #[serde(default)]
     pub driver_patterns: Vec<MappingEntry>,
     #[serde(default)]
+    pub mock_patterns: Vec<MappingEntry>,
+    #[serde(default)]
     pub images: Vec<ImageEntry>,
+    pub command: Option<CommandConfig>,
+    // 後方互換性のため、run_testも残す
+    #[serde(rename = "run_test")]
     pub run_test: Option<RunTestConfig>,
 }
 
@@ -24,12 +31,18 @@ pub struct IgnoreEntry {
 #[derive(Debug, Deserialize, Clone)]
 pub struct MappingEntry {
     pub pattern: String,
-    pub replacement: String,
+    pub resolution: String,
 }
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct ImageEntry {
     pub name: String,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct CommandConfig {
+    pub test: Option<RunTestConfig>,
+    pub run: Option<RunTestConfig>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -169,8 +182,11 @@ impl Config {
             // 設定ファイルが存在しない場合は空の設定を返す
             return Ok(Config {
                 ignores: Vec::new(),
+                src_patterns: Vec::new(),
                 driver_patterns: Vec::new(),
+                mock_patterns: Vec::new(),
                 images: Vec::new(),
+                command: None,
                 run_test: None,
             });
         }
