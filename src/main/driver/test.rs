@@ -12,11 +12,10 @@ mod tests {
         // 設定ファイルが存在しない場合
         let result = process_test(temp_dir.path());
         
-        // command.testまたはrun_testセクションが見つからないため、エラーが返されるはず
+        // command.testセクションが見つからないため、エラーが返されるはず
         assert!(result.is_err());
         let error_msg = result.unwrap_err().to_string();
-        assert!(error_msg.contains("command.test") || 
-                error_msg.contains("run_test") || 
+        assert!(error_msg.contains("command.test") && 
                 error_msg.contains("not found"));
     }
 
@@ -25,7 +24,7 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let config_path = temp_dir.path().join("overcode.toml");
         
-        // command.testまたはrun_testセクションがない設定ファイル
+        // command.testセクションがない設定ファイル
         let toml_content = r#"
 [[ignores]]
 file = ".gitignore"
@@ -34,7 +33,7 @@ file = ".gitignore"
         
         let result = process_test(temp_dir.path());
         
-        // command.testまたはrun_testセクションが見つからないため、エラーが返される
+        // command.testセクションが見つからないため、エラーが返される
         assert!(result.is_err());
     }
 
@@ -81,23 +80,5 @@ args = ["test", "{driver_file}"]
         assert!(result.is_ok());
     }
 
-    #[test]
-    fn test_process_test_with_run_test_backward_compatibility() {
-        let temp_dir = TempDir::new().unwrap();
-        let config_path = temp_dir.path().join("overcode.toml");
-        
-        // run_testセクション（後方互換性）がある設定ファイル
-        let toml_content = r#"
-[run_test]
-command = "cargo"
-args = ["test"]
-"#;
-        fs::write(&config_path, toml_content).unwrap();
-        
-        // run_testセクションが正しく読み込まれることを確認
-        // driver_filesが空の場合は成功を返す
-        let result = process_test(temp_dir.path());
-        assert!(result.is_ok());
-    }
 }
 

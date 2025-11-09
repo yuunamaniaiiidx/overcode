@@ -580,11 +580,11 @@ replace_rule = [
 
     #[test]
     fn test_config_command_test_priority_over_run_test() {
-        // test.rsの実際の使用パターン: command.testを優先し、なければrun_testを使用
+        // test.rsの実際の使用パターン: command.testのみを使用
         let temp_dir = TempDir::new().unwrap();
         let config_path = temp_dir.path().join("overcode.toml");
         
-        // 両方指定されている場合、command.testが優先される
+        // command.testが指定されている場合
         let toml_content = r#"
 [command.test]
 command = "cargo"
@@ -598,55 +598,28 @@ args = ["test", "run_test"]
         
         let config = Config::load_from_root(temp_dir.path()).unwrap();
         
-        // command.testが優先されることを確認
+        // command.testが使用されることを確認
         let run_test = config.command
             .as_ref()
             .and_then(|c| c.test.as_ref())
-            .or_else(|| config.run_test.as_ref())
-            .expect("run_test should exist");
+            .expect("command.test should exist");
         
         assert_eq!(run_test.args[1], "command_test");
     }
 
-    #[test]
-    fn test_config_run_test_fallback() {
-        // test.rsの実際の使用パターン: command.testがなければrun_testを使用
-        let temp_dir = TempDir::new().unwrap();
-        let config_path = temp_dir.path().join("overcode.toml");
-        
-        // command.testがなく、run_testのみ指定されている場合
-        let toml_content = r#"
-[run_test]
-command = "cargo"
-args = ["test", "run_test"]
-"#;
-        fs::write(&config_path, toml_content).unwrap();
-        
-        let config = Config::load_from_root(temp_dir.path()).unwrap();
-        
-        // run_testが使用されることを確認
-        let run_test = config.command
-            .as_ref()
-            .and_then(|c| c.test.as_ref())
-            .or_else(|| config.run_test.as_ref())
-            .expect("run_test should exist");
-        
-        assert_eq!(run_test.args[1], "run_test");
-    }
 
     #[test]
     fn test_config_no_test_config_error_case() {
-        // test.rsの実際の使用パターン: command.testもrun_testもない場合
+        // test.rsの実際の使用パターン: command.testがない場合
         let temp_dir = TempDir::new().unwrap();
         
         // 設定ファイルが存在しない場合
         let config = Config::load_from_root(temp_dir.path()).unwrap();
         
-        // command.testもrun_testもないことを確認
+        // command.testがないことを確認
         let run_test = config.command
             .as_ref()
-            .and_then(|c| c.test.as_ref())
-            .or_else(|| config.run_test.as_ref());
+            .and_then(|c| c.test.as_ref());
         
         assert!(run_test.is_none());
     }
