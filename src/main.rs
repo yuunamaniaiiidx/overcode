@@ -34,7 +34,6 @@ fn main() -> anyhow::Result<()> {
         }
         Command::Index => {
             config::Config::init_config(&cli.root_dir)?;
-            podman_install::ensure_podman()?;
             podman_image::ensure_images(&cli.root_dir)?;
             process_index(&cli.root_dir)?;
         }
@@ -46,15 +45,14 @@ fn main() -> anyhow::Result<()> {
         }
         Command::Test => {
             config::Config::init_config(&cli.root_dir)?;
+            podman_image::ensure_images(&cli.root_dir)?;
             process_index(&cli.root_dir)?;
-            process_build(&cli.root_dir)?;
             process_test(&cli.root_dir)?;
         }
         Command::Run => {
             config::Config::init_config(&cli.root_dir)?;
             podman_image::ensure_images(&cli.root_dir)?;
             process_index(&cli.root_dir)?;
-            process_build(&cli.root_dir)?;
             process_run(&cli.root_dir, &cli.extra_args)?;
         }
     }
