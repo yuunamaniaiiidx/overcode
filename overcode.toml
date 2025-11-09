@@ -5,12 +5,12 @@ file = ".gitignore"
 path = ".git"
 
 [[driver_patterns]]
-pattern = "(.+)/(.+)/driver/.+.(.+)"
-resolution = "$1/$2.$3"
+pattern = "(.+)/driver/.+.(.+)"
+resolution = "$1.$2"
 
 [[mock_patterns]]
-pattern = "(.+)/(.+)/mock/.+.(.+)"
-resolution = "$1/$2.$3"
+pattern = "(.+)/mock/.+.(.+)"
+resolution = "$1.$2"
 
 [[images]]
 name = "docker.io/library/rust:latest"

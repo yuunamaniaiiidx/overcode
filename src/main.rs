@@ -1,6 +1,7 @@
 mod cli;
 mod config;
 mod podman_image;
+mod podman_image_download;
 mod podman_install;
 mod podman_mount;
 mod run;
