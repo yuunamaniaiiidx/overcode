@@ -11,6 +11,8 @@ pub struct Config {
     pub ignores: Vec<IgnoreEntry>,
     #[serde(default)]
     pub driver_patterns: Vec<MappingEntry>,
+    #[serde(default)]
+    pub images: Vec<String>,
     pub run_test: Option<RunTestConfig>,
 }
 
@@ -161,6 +163,7 @@ impl Config {
             return Ok(Config {
                 ignores: Vec::new(),
                 driver_patterns: Vec::new(),
+                images: Vec::new(),
                 run_test: None,
             });
         }
@@ -180,6 +183,9 @@ impl Config {
     fn get_template_content() -> &'static str {
         r#"[[ignores]]
 path = ".git"
+
+# Podman images to pull during init
+# images = ["docker.io/library/ubuntu:latest"]
 "#
     }
 

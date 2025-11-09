@@ -5,6 +5,8 @@ mod file_hash_index;
 mod file_index;
 mod hash;
 mod index_manager;
+mod podman_image;
+mod podman_install;
 mod processor;
 mod rust_parser;
 mod scanner;
@@ -25,13 +27,19 @@ fn main() -> anyhow::Result<()> {
     match cli.command {
         Command::Init => {
             config::Config::init_config(&cli.root_dir)?;
+            podman_install::ensure_podman()?;
+            podman_image::ensure_images(&cli.root_dir)?;
         }
         Command::Index => {
             config::Config::init_config(&cli.root_dir)?;
+            podman_install::ensure_podman()?;
+            podman_image::ensure_images(&cli.root_dir)?;
             process_index(&cli.root_dir)?;
         }
         Command::Build => {
             config::Config::init_config(&cli.root_dir)?;
+            podman_install::ensure_podman()?;
+            podman_image::ensure_images(&cli.root_dir)?;
             process_index(&cli.root_dir)?;
             process_build(&cli.root_dir)?;
         }
