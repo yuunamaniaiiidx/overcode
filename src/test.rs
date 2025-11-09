@@ -86,6 +86,7 @@ fn execute_test_command(
     run_test: &crate::config::RunTestConfig,
     driver_file: &str,
     root_dir: &Path,
+    mount_args: &[String],
 ) -> anyhow::Result<()> {
     let root_dir_str = root_dir.display().to_string();
     
@@ -111,7 +112,7 @@ fn execute_test_command(
     // podman runでコンテナ内で実行（必須）
     let image = run_test.image
         .as_ref()
-        .ok_or_else(|| anyhow::anyhow!("image is required in [command.test] or [run_test] section"))?;
+        .ok_or_else(|| anyhow::anyhow!("image is required in [command.test] section"))?;
     
     info!("Executing in podman container (image: {}): {} {:?}", image, run_test.command, processed_args);
     
@@ -121,7 +122,7 @@ fn execute_test_command(
         "run".to_string(),
         "--rm".to_string(),
     ];
-    podman_args.extend(podman_mount::build_mount_args(root_dir));
+    podman_args.extend_from_slice(mount_args);
     podman_args.push("-w".to_string());
     podman_args.push(root_dir_str);
     podman_args.push(image.clone());
@@ -156,12 +157,10 @@ pub fn process_test(root_dir: &Path) -> anyhow::Result<()> {
     // driver_patternsでマッチしたファイルを取得
     let driver_files = find_driver_matched_files(&config, root_dir)?;
     
-    // command.testを優先し、なければrun_test（後方互換性）を使用
     let run_test = config.command
         .as_ref()
         .and_then(|c| c.test.as_ref())
-        .or_else(|| config.run_test.as_ref())
-        .ok_or_else(|| anyhow::anyhow!("[command.test] or [run_test] section not found in overcode.toml"))?;
+        .ok_or_else(|| anyhow::anyhow!("[command.test] section not found in overcode.toml"))?;
     
     if driver_files.is_empty() {
         warn!("No files matched driver_patterns pattern. Nothing to test.");
@@ -169,6 +168,9 @@ pub fn process_test(root_dir: &Path) -> anyhow::Result<()> {
     }
     
     info!("Found {} driver file(s) to test", driver_files.len());
+    
+    // マウント情報を作成
+    let mount_args = podman_mount::build_mount_args(root_dir);
     
     // 各ファイルに対して一つずつ実行
     let mut success_count = 0;
@@ -181,6 +183,7 @@ pub fn process_test(root_dir: &Path) -> anyhow::Result<()> {
             &run_test,
             driver_file,
             root_dir,
+            &mount_args,
         ) {
             Ok(_) => {
                 info!("✓ Test passed for: {}", driver_file);
