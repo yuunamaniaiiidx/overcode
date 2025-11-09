@@ -13,6 +13,10 @@ replacement = "$1.$2"
 pattern = "(.+)\\.mock\\..+\\.(.+)"
 replacement = "$1.$2"
 
+[[images]]
+name = "docker.io/library/rust:latest"
+
 [run_test]
 command = "cargo"
 args = ["test", "--manifest-path", "{builds_dir}/Cargo.toml", "{driver_file}"]
+image = "docker.io/library/rust:latest"

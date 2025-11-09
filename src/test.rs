@@ -37,8 +37,7 @@ fn find_driver_matched_files(config: &Config, storage: &Storage) -> anyhow::Resu
 
 /// テストコマンドを実行する
 fn execute_test_command(
-    command: &str,
-    args: &[String],
+    run_test: &crate::config::RunTestConfig,
     driver_file: &str,
     root_dir: &Path,
 ) -> anyhow::Result<()> {
@@ -48,7 +47,7 @@ fn execute_test_command(
     let root_dir_str = root_dir.display().to_string();
     
     // args内の{driver_file}、{root_dir}、{builds_dir}を置換
-    let processed_args: Vec<String> = args
+    let processed_args: Vec<String> = run_test.args
         .iter()
         .map(|arg| {
             arg.replace("{driver_file}", driver_file)
@@ -57,26 +56,63 @@ fn execute_test_command(
         })
         .collect();
     
-    info!("Executing: {} {:?} (from {:?})", command, processed_args, builds_dir);
-    
-    // .overcode/buildsディレクトリからテストを実行
-    let output = Command::new(command)
-        .args(&processed_args)
-        .current_dir(&builds_dir)
-        .output()
-        .with_context(|| format!("Failed to execute command: {}", command))?;
-    
-    // 標準出力と標準エラー出力をそのまま出力
-    std::io::stdout().write_all(&output.stdout)
-        .context("Failed to write stdout")?;
-    std::io::stderr().write_all(&output.stderr)
-        .context("Failed to write stderr")?;
-    
-    if !output.status.success() {
-        anyhow::bail!(
-            "Test command failed with exit code: {:?}",
-            output.status.code()
-        );
+    // イメージが指定されている場合はpodman runでコンテナ内で実行
+    if let Some(ref image) = run_test.image {
+        info!("Executing in podman container (image: {}): {} {:?}", image, run_test.command, processed_args);
+        
+        // podman runコマンドを構築
+        // podman run --rm -v {root_dir}:{root_dir} -w {builds_dir} {image} {command} {args...}
+        let mut podman_args = vec![
+            "run".to_string(),
+            "--rm".to_string(),
+            "-v".to_string(),
+            format!("{}:{}", root_dir_str, root_dir_str),
+            "-w".to_string(),
+            builds_dir_str.clone(),
+            image.clone(),
+            run_test.command.clone(),
+        ];
+        podman_args.extend(processed_args);
+        
+        let output = Command::new("podman")
+            .args(&podman_args)
+            .output()
+            .with_context(|| format!("Failed to execute podman run for image: {}", image))?;
+        
+        // 標準出力と標準エラー出力をそのまま出力
+        std::io::stdout().write_all(&output.stdout)
+            .context("Failed to write stdout")?;
+        std::io::stderr().write_all(&output.stderr)
+            .context("Failed to write stderr")?;
+        
+        if !output.status.success() {
+            anyhow::bail!(
+                "Test command failed with exit code: {:?}",
+                output.status.code()
+            );
+        }
+    } else {
+        info!("Executing: {} {:?} (from {:?})", run_test.command, processed_args, builds_dir);
+        
+        // 通常のコマンド実行
+        let output = Command::new(&run_test.command)
+            .args(&processed_args)
+            .current_dir(&builds_dir)
+            .output()
+            .with_context(|| format!("Failed to execute command: {}", run_test.command))?;
+        
+        // 標準出力と標準エラー出力をそのまま出力
+        std::io::stdout().write_all(&output.stdout)
+            .context("Failed to write stdout")?;
+        std::io::stderr().write_all(&output.stderr)
+            .context("Failed to write stderr")?;
+        
+        if !output.status.success() {
+            anyhow::bail!(
+                "Test command failed with exit code: {:?}",
+                output.status.code()
+            );
+        }
     }
     
     Ok(())
@@ -109,8 +145,7 @@ pub fn process_test(root_dir: &Path) -> anyhow::Result<()> {
         info!("Testing driver file: {}", driver_file);
         
         match execute_test_command(
-            &run_test.command,
-            &run_test.args,
+            &run_test,
             driver_file,
             root_dir,
         ) {

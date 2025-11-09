@@ -12,7 +12,7 @@ pub struct Config {
     #[serde(default)]
     pub driver_patterns: Vec<MappingEntry>,
     #[serde(default)]
-    pub images: Vec<String>,
+    pub images: Vec<ImageEntry>,
     pub run_test: Option<RunTestConfig>,
 }
 
@@ -28,9 +28,16 @@ pub struct MappingEntry {
 }
 
 #[derive(Debug, Deserialize, Clone)]
+pub struct ImageEntry {
+    pub name: String,
+}
+
+#[derive(Debug, Deserialize, Clone)]
 pub struct RunTestConfig {
     pub command: String,
     pub args: Vec<String>,
+    #[serde(default)]
+    pub image: Option<String>,
 }
 
 pub struct IgnorePattern {
@@ -185,7 +192,8 @@ impl Config {
 path = ".git"
 
 # Podman images to pull during init
-# images = ["docker.io/library/ubuntu:latest"]
+# [[images]]
+# name = "docker.io/library/ubuntu:latest"
 "#
     }
 

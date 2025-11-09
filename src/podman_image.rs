@@ -44,12 +44,13 @@ pub fn ensure_images(root_dir: &Path) -> Result<()> {
     
     info!("Checking {} image(s)...", config.images.len());
     
-    for image in &config.images {
-        if image_exists(image) {
-            info!("Image already exists: {}", image);
+    for image_entry in &config.images {
+        let image_name = &image_entry.name;
+        if image_exists(image_name) {
+            info!("Image already exists: {}", image_name);
         } else {
-            warn!("Image not found: {}, pulling...", image);
-            pull_image(image)?;
+            warn!("Image not found: {}, pulling...", image_name);
+            pull_image(image_name)?;
         }
     }
     
