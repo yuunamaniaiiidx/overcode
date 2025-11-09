@@ -207,10 +207,10 @@ pub fn process_test(root_dir: &Path) -> anyhow::Result<()> {
 }
 
 #[cfg(test)]
-#[path = "test/driver/config.rs"]
+#[path = "test/driver/config/config.rs"]
 mod driver_config;
 
 #[cfg(test)]
-#[path = "test/driver/podman_mount.rs"]
+#[path = "test/driver/podman_mount/podman_mount.rs"]
 mod driver_podman_mount;
 

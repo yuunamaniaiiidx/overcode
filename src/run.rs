@@ -109,6 +109,6 @@ pub fn process_run(root_dir: &Path, extra_args: &[String]) -> anyhow::Result<()>
 }
 
 #[cfg(test)]
-#[path = "run/driver/config.rs"]
+#[path = "run/driver/config/config.rs"]
 mod driver_config;
 
