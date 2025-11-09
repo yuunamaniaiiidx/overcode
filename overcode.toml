@@ -5,11 +5,11 @@ file = ".gitignore"
 path = ".git"
 
 [[driver_patterns]]
-pattern = "(.+)/driver/.+.(.+)"
+pattern = "(.+)/driver/(.+)/(.+).(.+)"
 resolution = "$1.$2"
 
 [[mock_patterns]]
-pattern = "(.+)/mock/.+.(.+)"
+pattern = "(.+)/mock/(.+)/(.+).(.+)"
 resolution = "$1.$2"
 
 [[images]]
@@ -20,7 +20,7 @@ command = "cargo"
 args = ["test", "--manifest-path", "Cargo.toml", "{driver_file}"]
 image = "docker.io/library/rust:latest"
 replace_rule = [
-  { pattern = "(.+)/(.+)/driver/.+.(.+)", replace = "$2::driver" }
+  { pattern = "(.+)/driver/(.+)/(.+).(.+)", replace = "$2::driver" }
 ]
 
 [command.run]

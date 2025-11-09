@@ -43,10 +43,13 @@ pub fn ensure_images(root_dir: &Path) -> Result<()> {
 }
 
 #[cfg(test)]
-#[path = "podman_image/driver/config.rs"]
+#[path = "podman_image/driver/config/config.rs"]
 mod driver_config;
 
 #[cfg(test)]
-#[path = "podman_image/driver/podman_image_download.rs"]
+#[path = "podman_image/driver/podman_image_download/fail.rs"]
 mod driver_podman_image_download;
 
+#[cfg(test)]
+#[path = "podman_image/driver/podman_image_download/success.rs"]
+mod driver_podman_image_download_success;
