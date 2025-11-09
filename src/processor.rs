@@ -250,3 +250,57 @@ pub fn update_all_file_metadata(
         })
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_normalize_paths() {
+        // 空のベクター
+        assert_eq!(normalize_paths(vec![] as Vec<String>), vec![] as Vec<String>);
+
+        // 既にソート済みで重複なし
+        assert_eq!(
+            normalize_paths(vec!["a.rs".to_string(), "b.rs".to_string()]),
+            vec!["a.rs".to_string(), "b.rs".to_string()]
+        );
+
+        // ソートされていない
+        assert_eq!(
+            normalize_paths(vec!["b.rs".to_string(), "a.rs".to_string()]),
+            vec!["a.rs".to_string(), "b.rs".to_string()]
+        );
+
+        // 重複あり
+        assert_eq!(
+            normalize_paths(vec!["a.rs".to_string(), "b.rs".to_string(), "a.rs".to_string()]),
+            vec!["a.rs".to_string(), "b.rs".to_string()]
+        );
+
+        // ソートされていて重複あり
+        assert_eq!(
+            normalize_paths(vec!["a.rs".to_string(), "a.rs".to_string(), "b.rs".to_string(), "c.rs".to_string()]),
+            vec!["a.rs".to_string(), "b.rs".to_string(), "c.rs".to_string()]
+        );
+    }
+
+    #[test]
+    fn test_has_new_paths() {
+        let known_paths: HashSet<String> = ["a.rs".to_string(), "b.rs".to_string()].iter().cloned().collect();
+
+        // 新しいパスがある
+        assert!(has_new_paths(&["a.rs".to_string(), "c.rs".to_string()], &known_paths));
+        assert!(has_new_paths(&["c.rs".to_string()], &known_paths));
+
+        // 新しいパスがない
+        assert!(!has_new_paths(&["a.rs".to_string(), "b.rs".to_string()], &known_paths));
+        assert!(!has_new_paths(&["a.rs".to_string()], &known_paths));
+        assert!(!has_new_paths(&[], &known_paths));
+
+        // 空の既知パスセット
+        let empty_known: HashSet<String> = HashSet::new();
+        assert!(has_new_paths(&["a.rs".to_string()], &empty_known));
+        assert!(!has_new_paths(&[], &empty_known));
+    }
+}
+

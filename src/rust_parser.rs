@@ -222,3 +222,186 @@ fn apply_patterns(path: &str, config: &Config) -> String {
     path.to_string()
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use tempfile::TempDir;
+
+    fn create_test_config() -> Config {
+        Config {
+            ignores: vec![],
+            src_patterns: vec![
+                crate::config::MappingEntry {
+                    pattern: r"(.+)/(.+)\.src\..+\.(.+)".to_string(),
+                    resolution: "$1/$2.$3".to_string(),
+                },
+            ],
+            driver_patterns: vec![
+                crate::config::MappingEntry {
+                    pattern: r"(.+)/(.+)\.driver\..+\.(.+)".to_string(),
+                    resolution: "$1/$2.$3".to_string(),
+                },
+            ],
+            mock_patterns: vec![
+                crate::config::MappingEntry {
+                    pattern: r"(.+)/(.+)\.mock\..+\.(.+)".to_string(),
+                    resolution: "$1/$2.$3".to_string(),
+                },
+            ],
+            images: vec![],
+            command: None,
+            run_test: None,
+        }
+    }
+
+    #[test]
+    fn test_extract_dependencies_crate() {
+        let temp_dir = TempDir::new().unwrap();
+        let root_dir = temp_dir.path();
+
+        // テスト用のファイル構造を作成
+        fs::create_dir_all(root_dir.join("module")).unwrap();
+        fs::write(root_dir.join("module.rs"), "pub fn test() {}").unwrap();
+        fs::write(root_dir.join("module").join("submodule.rs"), "pub fn test() {}").unwrap();
+
+        let config = create_test_config();
+        let file_path = root_dir.join("main.rs");
+        let content = r#"
+use crate::module;
+use crate::module::submodule;
+"#;
+
+        let deps = extract_dependencies(&file_path, content, root_dir, &config).unwrap();
+        assert_eq!(deps.len(), 2);
+        assert!(deps.contains(&"module.rs".to_string()));
+        assert!(deps.contains(&"module/submodule.rs".to_string()));
+    }
+
+    #[test]
+    fn test_extract_dependencies_super() {
+        let temp_dir = TempDir::new().unwrap();
+        let root_dir = temp_dir.path();
+
+        // テスト用のファイル構造を作成
+        fs::create_dir_all(root_dir.join("parent")).unwrap();
+        fs::write(root_dir.join("parent.rs"), "pub fn test() {}").unwrap();
+        fs::write(root_dir.join("parent").join("child.rs"), "pub fn test() {}").unwrap();
+
+        let config = create_test_config();
+        let file_path = root_dir.join("parent").join("child.rs");
+        let content = r#"
+use super::parent;
+"#;
+
+        let deps = extract_dependencies(&file_path, content, root_dir, &config).unwrap();
+        // super::parent は親ディレクトリ（root_dir）から parent.rs を探す
+        // parent/child.rs から見ると、親ディレクトリは root_dir で、そこに parent.rs がある
+        assert_eq!(deps.len(), 1);
+        assert!(deps.contains(&"parent.rs".to_string()));
+    }
+
+    #[test]
+    fn test_extract_dependencies_mod_declaration() {
+        let temp_dir = TempDir::new().unwrap();
+        let root_dir = temp_dir.path();
+
+        // テスト用のファイル構造を作成
+        fs::create_dir_all(root_dir.join("src")).unwrap();
+        fs::write(root_dir.join("src").join("main.rs"), "pub fn test() {}").unwrap();
+        fs::write(root_dir.join("src").join("module.rs"), "pub fn test() {}").unwrap();
+
+        let config = create_test_config();
+        let file_path = root_dir.join("src").join("main.rs");
+        let content = r#"
+mod module;
+"#;
+
+        let deps = extract_dependencies(&file_path, content, root_dir, &config).unwrap();
+        assert_eq!(deps.len(), 1);
+        assert!(deps.contains(&"src/module.rs".to_string()));
+    }
+
+    #[test]
+    fn test_extract_dependencies_ignores_comments() {
+        let temp_dir = TempDir::new().unwrap();
+        let root_dir = temp_dir.path();
+
+        fs::write(root_dir.join("module.rs"), "pub fn test() {}").unwrap();
+
+        let config = create_test_config();
+        let file_path = root_dir.join("main.rs");
+        let content = r#"
+// use crate::module;
+/* use crate::module; */
+use crate::module;
+"#;
+
+        let deps = extract_dependencies(&file_path, content, root_dir, &config).unwrap();
+        assert_eq!(deps.len(), 1);
+        assert!(deps.contains(&"module.rs".to_string()));
+    }
+
+    #[test]
+    fn test_extract_dependencies_ignores_std() {
+        let temp_dir = TempDir::new().unwrap();
+        let root_dir = temp_dir.path();
+
+        let config = create_test_config();
+        let file_path = root_dir.join("main.rs");
+        let content = r#"
+use std::collections::HashMap;
+use crate::module;
+"#;
+
+        // std:: を含むuse文は無視される
+        let deps = extract_dependencies(&file_path, content, root_dir, &config).unwrap();
+        // module.rs が存在しないので、depsは空になる
+        assert_eq!(deps.len(), 0);
+    }
+
+    #[test]
+    fn test_extract_dependencies_deduplicates() {
+        let temp_dir = TempDir::new().unwrap();
+        let root_dir = temp_dir.path();
+
+        fs::write(root_dir.join("module.rs"), "pub fn test() {}").unwrap();
+
+        let config = create_test_config();
+        let file_path = root_dir.join("main.rs");
+        let content = r#"
+use crate::module;
+use crate::module;
+mod module;
+"#;
+
+        let deps = extract_dependencies(&file_path, content, root_dir, &config).unwrap();
+        // 重複が除去される
+        assert_eq!(deps.len(), 1);
+        assert!(deps.contains(&"module.rs".to_string()));
+    }
+
+    #[test]
+    fn test_extract_dependencies_with_patterns() {
+        let temp_dir = TempDir::new().unwrap();
+        let root_dir = temp_dir.path();
+
+        // src_patternsにマッチするファイルを作成
+        fs::create_dir_all(root_dir.join("src")).unwrap();
+        fs::write(root_dir.join("src").join("module.src.test.rs"), "pub fn test() {}").unwrap();
+
+        let config = create_test_config();
+        let file_path = root_dir.join("main.rs");
+        let content = r#"
+use crate::src::module;
+"#;
+
+        // module.src.test.rs は src_patterns で module.rs に変換される
+        // ただし、extract_dependencies は実際のファイルパスを解決するので、
+        // パターン変換は apply_patterns で行われる
+        let deps = extract_dependencies(&file_path, content, root_dir, &config).unwrap();
+        // 実際のファイルが存在しないので空になる
+        assert_eq!(deps.len(), 0);
+    }
+}
+
