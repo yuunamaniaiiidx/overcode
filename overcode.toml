@@ -1,15 +1,15 @@
 [[ignores]]
 path = ".git"
 
-[[src_mappings]]
+[[src_patterns]]
 pattern = "(.+)\\.src\\..+\\.(.+)"
 replacement = "$1.$2"
 
-[[driver_mappings]]
+[[driver_patterns]]
 pattern = "(.+)\\.driver\\..+\\.(.+)"
 replacement = "$1.$2"
 
-[[mock_mappings]]
+[[mock_patterns]]
 pattern = "(.+)\\.mock\\..+\\.(.+)"
 replacement = "$1.$2"
 

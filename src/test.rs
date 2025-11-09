@@ -7,7 +7,7 @@ use crate::config::Config;
 use crate::storage::Storage;
 use log::{info, warn};
 
-/// driver_mappingsのパターンにマッチしたファイルを取得する
+/// driver_patternsのパターンにマッチしたファイルを取得する
 /// 元のファイル名（変換前）を返すことで、{src_name}.driver.{testtitle}.rs形式のファイルを個別に実行できる
 fn find_driver_matched_files(config: &Config, storage: &Storage) -> anyhow::Result<Vec<String>> {
     let file_index = storage.load_index()
@@ -15,8 +15,8 @@ fn find_driver_matched_files(config: &Config, storage: &Storage) -> anyhow::Resu
     
     let mut matched_files = Vec::new();
     
-    // 各driver_mappingパターンを適用
-    for mapping in &config.driver_mappings {
+    // 各driver_patternパターンを適用
+    for mapping in &config.driver_patterns {
         let pattern = Regex::new(&mapping.pattern)
             .with_context(|| format!("Invalid regex pattern: {}", mapping.pattern))?;
         
@@ -88,14 +88,14 @@ pub fn process_test(root_dir: &Path) -> anyhow::Result<()> {
     
     let storage = Storage::new(root_dir)?;
     
-    // driver_mappingsでマッチしたファイルを取得
+    // driver_patternsでマッチしたファイルを取得
     let driver_files = find_driver_matched_files(&config, &storage)?;
     
     let run_test = config.run_test
         .ok_or_else(|| anyhow::anyhow!("[run_test] section not found in overcode.toml"))?;
     
     if driver_files.is_empty() {
-        warn!("No files matched driver_mappings pattern. Nothing to test.");
+        warn!("No files matched driver_patterns pattern. Nothing to test.");
         return Ok(());
     }
     

@@ -10,7 +10,7 @@ pub struct Config {
     #[serde(default)]
     pub ignores: Vec<IgnoreEntry>,
     #[serde(default)]
-    pub driver_mappings: Vec<MappingEntry>,
+    pub driver_patterns: Vec<MappingEntry>,
     pub run_test: Option<RunTestConfig>,
 }
 
@@ -160,7 +160,7 @@ impl Config {
             // 設定ファイルが存在しない場合は空の設定を返す
             return Ok(Config {
                 ignores: Vec::new(),
-                driver_mappings: Vec::new(),
+                driver_patterns: Vec::new(),
                 run_test: None,
             });
         }
