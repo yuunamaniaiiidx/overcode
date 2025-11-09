@@ -10,8 +10,6 @@ pub struct Config {
     #[serde(default)]
     pub ignores: Vec<IgnoreEntry>,
     #[serde(default)]
-    pub src_patterns: Vec<MappingEntry>,
-    #[serde(default)]
     pub driver_patterns: Vec<MappingEntry>,
     #[serde(default)]
     pub mock_patterns: Vec<MappingEntry>,
@@ -25,7 +23,10 @@ pub struct Config {
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct IgnoreEntry {
-    pub path: String,
+    #[serde(default)]
+    pub path: Option<String>,
+    #[serde(default)]
+    pub file: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -46,11 +47,19 @@ pub struct CommandConfig {
 }
 
 #[derive(Debug, Deserialize, Clone)]
+pub struct ReplaceRule {
+    pub pattern: String,
+    pub replace: String,
+}
+
+#[derive(Debug, Deserialize, Clone)]
 pub struct RunTestConfig {
     pub command: String,
     pub args: Vec<String>,
     #[serde(default)]
     pub image: Option<String>,
+    #[serde(default)]
+    pub replace_rule: Vec<ReplaceRule>,
 }
 
 pub struct IgnorePattern {
@@ -182,7 +191,6 @@ impl Config {
             // 設定ファイルが存在しない場合は空の設定を返す
             return Ok(Config {
                 ignores: Vec::new(),
-                src_patterns: Vec::new(),
                 driver_patterns: Vec::new(),
                 mock_patterns: Vec::new(),
                 images: Vec::new(),
@@ -198,13 +206,26 @@ impl Config {
     pub fn get_ignore_patterns(&self) -> Vec<IgnorePattern> {
         self.ignores
             .iter()
-            .map(|entry| IgnorePattern::new(&entry.path))
+            .filter_map(|entry| {
+                entry.path.as_ref().map(|p| IgnorePattern::new(p))
+            })
+            .collect()
+    }
+
+    /// ignoreファイルのリストを取得
+    pub fn get_ignore_files(&self) -> Vec<String> {
+        self.ignores
+            .iter()
+            .filter_map(|entry| entry.file.clone())
             .collect()
     }
 
     /// 設定ファイルのテンプレート内容を返す
     fn get_template_content() -> &'static str {
         r#"[[ignores]]
+file = ".gitignore"
+
+[[ignores]]
 path = ".git"
 
 # Podman images to pull during init

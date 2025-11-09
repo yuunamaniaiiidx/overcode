@@ -2,7 +2,7 @@ use anyhow::Context;
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::UNIX_EPOCH;
 use crate::storage::Storage;
 
 /// build処理を実行する
@@ -113,5 +113,10 @@ pub fn process_build(root_dir: &Path) -> anyhow::Result<()> {
 
     println!("Build completed: {} files copied, {} files skipped", copied, skipped);
     Ok(())
+}
+
+#[cfg(test)]
+mod driver {
+    mod storage;
 }
 

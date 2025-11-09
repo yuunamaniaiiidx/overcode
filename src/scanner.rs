@@ -1,20 +1,35 @@
 use ignore::WalkBuilder;
 use std::path::{Path, PathBuf};
-use crate::config::IgnorePattern;
+use crate::config::{Config, IgnorePattern};
 
 pub struct FileEntry {
     pub path: PathBuf,
     pub relative_path: PathBuf,
 }
 
-pub fn scan_directory(root: &Path, ignore_patterns: &[IgnorePattern]) -> anyhow::Result<Vec<FileEntry>> {
+pub fn scan_directory(root: &Path, ignore_patterns: &[IgnorePattern], config: &Config) -> anyhow::Result<Vec<FileEntry>> {
     let mut entries = Vec::new();
     
-    let walker = WalkBuilder::new(root)
+    // WalkBuilderを構築
+    let mut builder = WalkBuilder::new(root);
+    builder
         .hidden(false)
-        .git_ignore(true)
-        .git_exclude(true)
-        .build();
+        .git_ignore(false)  // デフォルトの.gitignoreは無効化
+        .git_exclude(true);
+    
+    // 設定から読み込んだignoreファイルを追加
+    let ignore_files = config.get_ignore_files();
+    for ignore_file in ignore_files {
+        let ignore_path = root.join(&ignore_file);
+        if ignore_path.exists() {
+            // WalkBuilderにignoreファイルを追加
+            if let Some(err) = builder.add_ignore(&ignore_path) {
+                return Err(anyhow::anyhow!("Failed to add ignore file {:?}: {}", ignore_path, err));
+            }
+        }
+    }
+    
+    let walker = builder.build();
     
     for result in walker {
         let entry = result?;

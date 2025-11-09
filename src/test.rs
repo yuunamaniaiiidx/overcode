@@ -46,11 +46,21 @@ fn execute_test_command(
     let builds_dir_str = builds_dir.display().to_string();
     let root_dir_str = root_dir.display().to_string();
     
+    // replace_ruleを適用してdriver_fileを変換
+    let mut processed_driver_file = driver_file.to_string();
+    for rule in &run_test.replace_rule {
+        let regex = Regex::new(&rule.pattern)
+            .with_context(|| format!("Invalid regex pattern in replace_rule: {}", rule.pattern))?;
+        
+        // 正規表現でマッチした場合、置換文字列内の$1, $2, ...を自動的にキャプチャグループの値に置換
+        processed_driver_file = regex.replace(&processed_driver_file, rule.replace.as_str()).to_string();
+    }
+    
     // args内の{driver_file}、{root_dir}、{builds_dir}を置換
     let processed_args: Vec<String> = run_test.args
         .iter()
         .map(|arg| {
-            arg.replace("{driver_file}", driver_file)
+            arg.replace("{driver_file}", &processed_driver_file)
                .replace("{root_dir}", &root_dir_str)
                .replace("{builds_dir}", &builds_dir_str)
         })

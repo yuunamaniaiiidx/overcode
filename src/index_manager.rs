@@ -25,7 +25,7 @@ pub fn process_index(root_dir: &Path) -> anyhow::Result<FileIndex> {
     info!("Scanning directory: {:?}", root_dir);
 
     // ディレクトリをスキャン
-    let files = scanner::scan_directory(root_dir, &ignore_patterns)?;
+    let files = scanner::scan_directory(root_dir, &ignore_patterns, &config)?;
     info!("Found {} files to process", files.len());
 
     // .overcodeディレクトリの準備
