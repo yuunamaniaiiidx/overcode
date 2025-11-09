@@ -5,6 +5,7 @@ use std::io::Write;
 use regex::Regex;
 use ignore::WalkBuilder;
 use crate::config::Config;
+use crate::podman_mount;
 use log::{info, warn};
 
 /// driver_patternsのパターンにマッチしたファイルを取得する
@@ -107,63 +108,35 @@ fn execute_test_command(
         })
         .collect();
     
-    // イメージが指定されている場合はpodman runでコンテナ内で実行
-    if let Some(ref image) = run_test.image {
-        info!("Executing in podman container (image: {}): {} {:?}", image, run_test.command, processed_args);
-        
-        // podman runコマンドを構築
-        // podman run --rm -v {root_dir}:{root_dir} -w {root_dir} {image} {command} {args...}
-        let mut podman_args = vec![
-            "run".to_string(),
-            "--rm".to_string(),
-            "-v".to_string(),
-            format!("{}:{}", root_dir_str, root_dir_str),
-            "-w".to_string(),
-            root_dir_str.clone(),
-            image.clone(),
-            run_test.command.clone(),
-        ];
-        podman_args.extend(processed_args);
-        
-        let output = Command::new("podman")
-            .args(&podman_args)
-            .output()
-            .with_context(|| format!("Failed to execute podman run for image: {}", image))?;
-        
-        // 標準出力と標準エラー出力をそのまま出力
-        std::io::stdout().write_all(&output.stdout)
-            .context("Failed to write stdout")?;
-        std::io::stderr().write_all(&output.stderr)
-            .context("Failed to write stderr")?;
-        
-        if !output.status.success() {
-            anyhow::bail!(
-                "Test command failed with exit code: {:?}",
-                output.status.code()
-            );
-        }
-    } else {
-        info!("Executing: {} {:?} (from {:?})", run_test.command, processed_args, root_dir);
-        
-        // 通常のコマンド実行
-        let output = Command::new(&run_test.command)
-            .args(&processed_args)
-            .current_dir(root_dir)
-            .output()
-            .with_context(|| format!("Failed to execute command: {}", run_test.command))?;
-        
-        // 標準出力と標準エラー出力をそのまま出力
-        std::io::stdout().write_all(&output.stdout)
-            .context("Failed to write stdout")?;
-        std::io::stderr().write_all(&output.stderr)
-            .context("Failed to write stderr")?;
-        
-        if !output.status.success() {
-            anyhow::bail!(
-                "Test command failed with exit code: {:?}",
-                output.status.code()
-            );
-        }
+    // podman runでコンテナ内で実行（必須）
+    let image = run_test.image
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("image is required in [command.test] or [run_test] section"))?;
+    
+    info!("Executing in podman container (image: {}): {} {:?}", image, run_test.command, processed_args);
+    
+    // podman runコマンドを構築
+    let mut podman_args = podman_mount::build_mount_args(root_dir);
+    podman_args.push(image.clone());
+    podman_args.push(run_test.command.clone());
+    podman_args.extend(processed_args);
+    
+    let output = Command::new("podman")
+        .args(&podman_args)
+        .output()
+        .with_context(|| format!("Failed to execute podman run for image: {}", image))?;
+    
+    // 標準出力と標準エラー出力をそのまま出力
+    std::io::stdout().write_all(&output.stdout)
+        .context("Failed to write stdout")?;
+    std::io::stderr().write_all(&output.stderr)
+        .context("Failed to write stderr")?;
+    
+    if !output.status.success() {
+        anyhow::bail!(
+            "Test command failed with exit code: {:?}",
+            output.status.code()
+        );
     }
     
     Ok(())
