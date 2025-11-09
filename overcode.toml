@@ -2,9 +2,6 @@
 file = ".gitignore"
 
 [[ignores]]
-path = ".overcode"
-
-[[ignores]]
 path = ".git"
 
 [[driver_patterns]]
@@ -23,10 +20,10 @@ command = "cargo"
 args = ["test", "--manifest-path", "Cargo.toml", "{driver_file}"]
 image = "docker.io/library/rust:latest"
 replace_rule = [
-  { pattern = "(.+)/(.+)/driver/.+.(.+)", replace = "$2" }
+  { pattern = "(.+)/(.+)/driver/.+.(.+)", replace = "$2::driver" }
 ]
 
 [command.run]
 command = "cargo"
-args = ["test", "--manifest-path", "Cargo.toml", "--tests"]
+args = ["run", "--manifest-path", "Cargo.toml"]
 image = "docker.io/library/rust:latest"

@@ -332,46 +332,6 @@ args = ["test"]
         assert!(run_config.image.is_none());
     }
 
-    #[test]
-    fn test_run_config_with_builds_dir_replacement() {
-        // run.rsの実際の使用パターン: {root_dir}と{builds_dir}の置換
-        let temp_dir = TempDir::new().unwrap();
-        let config_path = temp_dir.path().join("overcode.toml");
-        
-        let toml_content = r#"
-[command.run]
-command = "cargo"
-args = ["test", "--manifest-path", "{root_dir}/Cargo.toml", "--build-dir", "{builds_dir}"]
-"#;
-        fs::write(&config_path, toml_content).unwrap();
-        
-        let config = Config::load_from_root(temp_dir.path()).unwrap();
-        
-        let run_config = config.command
-            .as_ref()
-            .and_then(|c| c.run.as_ref())
-            .expect("run config should exist");
-        
-        // run.rsと同じパターンで置換できることを確認
-        let builds_dir = temp_dir.path().join(".overcode").join("builds");
-        let builds_dir_str = builds_dir.display().to_string();
-        let root_dir_str = temp_dir.path().display().to_string();
-        
-        let processed_args: Vec<String> = run_config.args
-            .iter()
-            .map(|arg| {
-                arg.replace("{root_dir}", &root_dir_str)
-                   .replace("{builds_dir}", &builds_dir_str)
-            })
-            .collect();
-        
-        assert_eq!(processed_args.len(), 5);
-        assert_eq!(processed_args[0], "test");
-        assert_eq!(processed_args[1], "--manifest-path");
-        assert_eq!(processed_args[2], format!("{}/Cargo.toml", root_dir_str));
-        assert_eq!(processed_args[3], "--build-dir");
-        assert_eq!(processed_args[4], builds_dir_str);
-    }
 
     #[test]
     fn test_config_command_none_case() {

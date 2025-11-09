@@ -11,17 +11,13 @@ fn execute_run_command(
     root_dir: &Path,
     extra_args: &[String],
 ) -> anyhow::Result<()> {
-    // .overcode/buildsディレクトリのパスを取得
-    let builds_dir = root_dir.join(".overcode").join("builds");
-    let builds_dir_str = builds_dir.display().to_string();
     let root_dir_str = root_dir.display().to_string();
     
-    // args内の{root_dir}、{builds_dir}を置換
+    // args内の{root_dir}を置換
     let mut processed_args: Vec<String> = run_config.args
         .iter()
         .map(|arg| {
             arg.replace("{root_dir}", &root_dir_str)
-               .replace("{builds_dir}", &builds_dir_str)
         })
         .collect();
     
@@ -64,12 +60,12 @@ fn execute_run_command(
             );
         }
     } else {
-        info!("Executing: {} {:?} (from {:?})", run_config.command, processed_args, builds_dir);
+        info!("Executing: {} {:?} (from {:?})", run_config.command, processed_args, root_dir);
         
         // 通常のコマンド実行
         let output = Command::new(&run_config.command)
             .args(&processed_args)
-            .current_dir(&builds_dir)
+            .current_dir(root_dir)
             .output()
             .with_context(|| format!("Failed to execute command: {}", run_config.command))?;
         
