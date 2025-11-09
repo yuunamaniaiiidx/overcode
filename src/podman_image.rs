@@ -58,3 +58,7 @@ pub fn ensure_images(root_dir: &Path) -> Result<()> {
     Ok(())
 }
 
+#[cfg(test)]
+#[path = "podman_image/driver/config.rs"]
+mod driver_config;
+

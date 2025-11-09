@@ -232,3 +232,7 @@ pub fn process_test(root_dir: &Path) -> anyhow::Result<()> {
     Ok(())
 }
 
+#[cfg(test)]
+#[path = "test/driver/config.rs"]
+mod driver_config;
+
