@@ -180,14 +180,26 @@ fn execute_test_command(
 ) -> anyhow::Result<()> {
     let root_dir_str = root_dir.display().to_string();
     
-    // replace_ruleを適用してdriver_fileを変換
+    // replace_ruleを適用する前のdriver_fileをログ出力
+    info!("Before replace_rule application: driver_file = '{}'", driver_file);
+    
     let mut processed_driver_file = driver_file.to_string();
+
     for rule in &run_test.replace_rule {
-        let regex = Regex::new(&rule.pattern)
-            .with_context(|| format!("Invalid regex pattern in replace_rule: {}", rule.pattern))?;
-        
-        // 正規表現でマッチした場合、置換文字列内の$1, $2, ...を自動的にキャプチャグループの値に置換
-        processed_driver_file = regex.replace(&processed_driver_file, rule.replace.as_str()).to_string();
+        info!("Applying replace_rule: pattern = '{}', replace = '{}'", rule.pattern, rule.replace);
+    
+        let re = Regex::new(&rule.pattern).unwrap();
+        let replaced = re.replace(processed_driver_file.as_str(), |caps: &regex::Captures| {
+            // rule.replace が "$1::driver_$2_$3" の場合を想定
+            // クロージャ内で明示的に置換
+            rule.replace
+                .replace("$1", &caps[1])
+                .replace("$2", &caps[2])
+                .replace("$3", &caps[3])
+        });
+    
+        processed_driver_file = replaced.to_string();
+        info!("After replace_rule application: '{}' -> '{}'", driver_file, processed_driver_file);
     }
     
     // args内の{driver_file}、{root_dir}を置換
@@ -389,9 +401,9 @@ pub fn process_test(root_dir: &Path) -> anyhow::Result<()> {
 
 #[cfg(test)]
 #[path = "test/driver/config/config.rs"]
-mod driver_config;
+mod driver_config_config;
 
 #[cfg(test)]
 #[path = "test/driver/podman_mount/podman_mount.rs"]
-mod driver_podman_mount;
+mod driver_podman_mount_podman_mount;
 

@@ -5,11 +5,11 @@ file = ".gitignore"
 path = ".git"
 
 [[driver_patterns]]
-pattern = "src/(.+)/driver/(.+)/(.+).rs"
+pattern = "src/([^/]+)/driver/([^/]+)/([^/]+)\\.rs"
 testcase = "$2_$3"
 
 [[mock_patterns]]
-pattern = "src/(.+)/mock/(.+)/(.+).rs"
+pattern = "src/([^/]+)/mock/([^/]+)/([^/]+)\\.rs"
 testcase = "$1_$3"
 mount_path = "src/$1.rs"
 
@@ -23,10 +23,7 @@ command = "cargo"
 args = ["test", "--manifest-path", "Cargo.toml", "{driver_file}"]
 
 replace_rule = [
-  { pattern = "(.+)/driver/(.+)/(.+).(.+)", replace = "$2::driver" },
-  { pattern = "([^:]+)/([^:]+)::driver", replace = "$1_$2::driver" },
-  { pattern = "([^:]+)/([^:]+)::driver", replace = "$1_$2::driver" },
-  { pattern = "([^:]+)/([^:]+)::driver", replace = "$1_$2::driver" }
+  { pattern = "src/([^/]+)/driver/([^/]+)/([^/]+)\\.rs", replace = "$1::driver_$2_$3" },
 ]
 
 [command.run]

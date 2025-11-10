@@ -21,19 +21,11 @@ mod tests {
         let image_name: &str = &image_entry_name;
         let result = podman_image_download::pull_image(image_name);
         
-        // Result型であることを確認
-        assert!(result.is_ok() || result.is_err());
+        // pull_imageがOk(())を返すことを確認
+        assert!(result.is_ok(), "pull_image should return Ok(())");
         
         // Result<()>であることを確認（成功時はOk(())）
-        if let Ok(()) = result {
-            // Ok(())が返されることを確認
-        }
-        
-        // エラーが返された場合、anyhow::Errorとして扱えることを確認
-        if let Err(e) = result {
-            let _error_msg = e.to_string();
-            let _error_chain = format!("{:?}", e);
-        }
+        assert_eq!(result.unwrap(), ());
     }
 
     #[test]
@@ -48,7 +40,8 @@ mod tests {
         }
         
         // コンパイルが通れば、?演算子で使用できることが確認される
-        let _result = test_function();
+        let result = test_function();
+        assert!(result.is_ok(), "test_function should return Ok(())");
     }
 
     #[test]
@@ -78,7 +71,8 @@ mod tests {
         }
         
         // コンパイルが通れば、podman_image.rsと同じパターンで使用できることが確認される
-        let _result = process_images(&images);
+        let result = process_images(&images);
+        assert!(result.is_ok(), "process_images should return Ok(())");
     }
 }
 
