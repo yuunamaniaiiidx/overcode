@@ -92,7 +92,7 @@ file = ".gitignore"
         let toml_content = r#"
 [[driver_patterns]]
 pattern = "(.+)/(.+)/driver/.+.(.+)"
-resolution = "$1/$2.$3"
+testcase = "$1/$2.$3"
 "#;
         fs::write(&config_path, toml_content).unwrap();
         
@@ -111,11 +111,11 @@ resolution = "$1/$2.$3"
         let toml_content = r#"
 [[driver_patterns]]
 pattern = "(.+)/(.+)/driver/.+.(.+)"
-resolution = "$1/$2.$3"
+testcase = "$1/$2.$3"
 
 [[driver_patterns]]
 pattern = "(.+)/(.+)/mock/.+.(.+)"
-resolution = "$1/$2.$3"
+testcase = "$1/$2.$3"
 "#;
         fs::write(&config_path, toml_content).unwrap();
         
@@ -138,7 +138,7 @@ resolution = "$1/$2.$3"
         let toml_content = r#"
 [[driver_patterns]]
 pattern = "(.+)/(.+)/driver/.+.(.+)"
-resolution = "$1/$2.$3"
+testcase = "$1/$2.$3"
 "#;
         fs::write(&config_path, toml_content).unwrap();
         
@@ -622,6 +622,173 @@ args = ["test", "run_test"]
             .and_then(|c| c.test.as_ref());
         
         assert!(run_test.is_none());
+    }
+
+    #[test]
+    fn test_config_mock_patterns_is_vec_mapping_entry() {
+        // config.mock_patternsがVec<MappingEntry>であることを確認
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("overcode.toml");
+        
+        let toml_content = r#"
+[[mock_patterns]]
+pattern = "(.+)/(.+)/mock/.+.(.+)"
+testcase = "$1/$2.$3"
+mount_path = "$1/$2.$3"
+"#;
+        fs::write(&config_path, toml_content).unwrap();
+        
+        let config = Config::load_from_root(temp_dir.path()).unwrap();
+        
+        // mock_patternsがVec<MappingEntry>であることを確認
+        assert_eq!(config.mock_patterns.len(), 1);
+    }
+
+    #[test]
+    fn test_config_mock_patterns_can_be_iterated() {
+        // config.mock_patternsをイテレートできることを確認
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("overcode.toml");
+        
+        let toml_content = r#"
+[[mock_patterns]]
+pattern = "(.+)/(.+)/mock/.+.(.+)"
+testcase = "$1/$2.$3"
+mount_path = "$1/$2.$3"
+
+[[mock_patterns]]
+pattern = "(.+)/(.+)/mock2/.+.(.+)"
+testcase = "$1/$2.$3"
+mount_path = "$1/$2.$3"
+"#;
+        fs::write(&config_path, toml_content).unwrap();
+        
+        let config = Config::load_from_root(temp_dir.path()).unwrap();
+        
+        // イテレートできることを確認
+        let mut count = 0;
+        for _mapping in &config.mock_patterns {
+            count += 1;
+        }
+        assert_eq!(count, 2);
+    }
+
+    #[test]
+    fn test_mock_patterns_mapping_testcase_is_string() {
+        // mapping.testcaseがStringであることを確認
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("overcode.toml");
+        
+        let toml_content = r#"
+[[mock_patterns]]
+pattern = "(.+)/(.+)/mock/.+.(.+)"
+testcase = "$1/$2.$3"
+mount_path = "$1/$2.$3"
+"#;
+        fs::write(&config_path, toml_content).unwrap();
+        
+        let config = Config::load_from_root(temp_dir.path()).unwrap();
+        
+        // testcaseがStringであることを確認
+        assert_eq!(config.mock_patterns[0].testcase, "$1/$2.$3");
+        let _testcase_str: &str = &config.mock_patterns[0].testcase;
+    }
+
+    #[test]
+    fn test_mock_patterns_mapping_mount_path_is_option_string() {
+        // mapping.mount_pathがOption<String>であることを確認
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("overcode.toml");
+        
+        // mount_pathが指定されている場合
+        let toml_content = r#"
+[[mock_patterns]]
+pattern = "(.+)/(.+)/mock/.+.(.+)"
+testcase = "$1/$2.$3"
+mount_path = "$1/$2.$3"
+"#;
+        fs::write(&config_path, toml_content).unwrap();
+        
+        let config = Config::load_from_root(temp_dir.path()).unwrap();
+        
+        // mount_pathがOption<String>であることを確認
+        assert!(config.mock_patterns[0].mount_path.is_some());
+        assert_eq!(config.mock_patterns[0].mount_path.as_ref().unwrap(), "$1/$2.$3");
+    }
+
+    #[test]
+    fn test_mock_patterns_mapping_mount_path_none_case() {
+        // mapping.mount_pathがNoneの場合の動作を確認
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("overcode.toml");
+        
+        // mount_pathが指定されていない場合
+        let toml_content = r#"
+[[mock_patterns]]
+pattern = "(.+)/(.+)/mock/.+.(.+)"
+testcase = "$1/$2.$3"
+"#;
+        fs::write(&config_path, toml_content).unwrap();
+        
+        let config = Config::load_from_root(temp_dir.path()).unwrap();
+        
+        // mount_pathがNoneであることを確認
+        assert!(config.mock_patterns[0].mount_path.is_none());
+    }
+
+    #[test]
+    fn test_mock_patterns_mapping_mount_path_as_deref_works() {
+        // mapping.mount_path.as_deref()が動作することを確認（test.rsの実際の使用パターン）
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("overcode.toml");
+        
+        let toml_content = r#"
+[[mock_patterns]]
+pattern = "(.+)/(.+)/mock/.+.(.+)"
+testcase = "$1/$2.$3"
+mount_path = "$1/$2.$3"
+"#;
+        fs::write(&config_path, toml_content).unwrap();
+        
+        let config = Config::load_from_root(temp_dir.path()).unwrap();
+        
+        // as_deref()が動作することを確認（test.rsの実際の使用パターンを再現）
+        for mapping in &config.mock_patterns {
+            let mount_path_opt: Option<&str> = mapping.mount_path.as_deref();
+            assert!(mount_path_opt.is_some());
+            assert_eq!(mount_path_opt.unwrap(), "$1/$2.$3");
+        }
+    }
+
+    #[test]
+    fn test_mock_patterns_compilation_pattern() {
+        // test.rsの実際の使用パターン: mock_patternsのコンパイル
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("overcode.toml");
+        
+        let toml_content = r#"
+[[mock_patterns]]
+pattern = "(.+)/(.+)/mock/.+.(.+)"
+testcase = "$1/$2.$3"
+mount_path = "$1/$2.$3"
+"#;
+        fs::write(&config_path, toml_content).unwrap();
+        
+        let config = Config::load_from_root(temp_dir.path()).unwrap();
+        
+        // test.rsと同じパターンでmock_patternsをコンパイルできることを確認
+        use regex::Regex;
+        let mut mock_patterns_compiled = Vec::new();
+        for mapping in &config.mock_patterns {
+            let pattern = Regex::new(&mapping.pattern).unwrap();
+            mock_patterns_compiled.push((pattern, &mapping.testcase, mapping.mount_path.as_deref()));
+        }
+        
+        assert_eq!(mock_patterns_compiled.len(), 1);
+        let (pattern, testcase, mount_path) = &mock_patterns_compiled[0];
+        assert!(pattern.is_match("src/test/mock/config.rs"));
+        assert_eq!(*testcase, "$1/$2.$3");
+        assert_eq!(*mount_path, Some("$1/$2.$3"));
     }
 }
 

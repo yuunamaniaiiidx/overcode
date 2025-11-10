@@ -5,28 +5,31 @@ file = ".gitignore"
 path = ".git"
 
 [[driver_patterns]]
-pattern = "(.+)/driver/(.+)/(.+).rs"
-resolution = "$1.$2"
+pattern = "src/(.+)/driver/(.+)/(.+).rs"
+testcase = "$2_$3"
 
 [[mock_patterns]]
-pattern = "(.+)/mock/(.+)/(.+).rs"
-resolution = "$1.$2"
+pattern = "src/(.+)/mock/(.+)/(.+).rs"
+testcase = "$1_$3"
+mount_path = "src/$1.rs"
+
 
 [[images]]
 name = "docker.io/library/rust:latest"
 
 [command.test]
+image = "docker.io/library/rust:latest"
 command = "cargo"
 args = ["test", "--manifest-path", "Cargo.toml", "{driver_file}"]
-image = "docker.io/library/rust:latest"
+
 replace_rule = [
-  { pattern = "(.+)/driver/(.+)/(.+).rs", replace = "$2::driver" },
+  { pattern = "(.+)/driver/(.+)/(.+).(.+)", replace = "$2::driver" },
   { pattern = "([^:]+)/([^:]+)::driver", replace = "$1_$2::driver" },
   { pattern = "([^:]+)/([^:]+)::driver", replace = "$1_$2::driver" },
   { pattern = "([^:]+)/([^:]+)::driver", replace = "$1_$2::driver" }
 ]
 
 [command.run]
+image = "docker.io/library/rust:latest"
 command = "cargo"
 args = ["run", "--manifest-path", "Cargo.toml"]
-image = "docker.io/library/rust:latest"

@@ -2,6 +2,7 @@ use anyhow::Context;
 use std::path::Path;
 use std::process::Command;
 use std::io::Write;
+use std::collections::HashMap;
 use regex::Regex;
 use ignore::WalkBuilder;
 use crate::config::Config;
@@ -81,6 +82,95 @@ fn find_driver_matched_files(config: &Config, root_dir: &Path) -> anyhow::Result
     Ok(matched_files)
 }
 
+/// mock_patternsのパターンにマッチしたファイルを取得する
+fn find_mock_matched_files(config: &Config, root_dir: &Path) -> anyhow::Result<Vec<String>> {
+    let ignore_patterns = config.get_ignore_patterns();
+    let ignore_files = config.get_ignore_files();
+    
+    // WalkBuilderを構築
+    let mut builder = WalkBuilder::new(root_dir);
+    builder
+        .hidden(false)
+        .git_ignore(false)  // デフォルトの.gitignoreは無効化
+        .git_exclude(true);
+    
+    // 設定から読み込んだignoreファイルを追加
+    for ignore_file in ignore_files {
+        let ignore_path = root_dir.join(&ignore_file);
+        if ignore_path.exists() {
+            // WalkBuilderにignoreファイルを追加
+            if let Some(err) = builder.add_ignore(&ignore_path) {
+                return Err(anyhow::anyhow!("Failed to add ignore file {:?}: {}", ignore_path, err));
+            }
+        }
+    }
+    
+    let walker = builder.build();
+    
+    // 各mock_patternパターンをコンパイル
+    let mut compiled_patterns = Vec::new();
+    for mapping in &config.mock_patterns {
+        let pattern = Regex::new(&mapping.pattern)
+            .with_context(|| format!("Invalid regex pattern: {}", mapping.pattern))?;
+        compiled_patterns.push(pattern);
+    }
+    
+    let mut matched_files = Vec::new();
+    
+    // ファイルシステムをスキャン
+    for result in walker {
+        let entry = result?;
+        let path = entry.path();
+        
+        // ignoreパターンで除外
+        let should_ignore = ignore_patterns.iter().any(|pattern| pattern.matches(path, root_dir));
+        if should_ignore {
+            continue;
+        }
+        
+        // ファイルのみを処理
+        if !path.is_file() {
+            continue;
+        }
+        
+        // 相対パスを取得
+        let relative_path = path.strip_prefix(root_dir)?
+            .to_string_lossy()
+            .to_string();
+        
+        // mock_patternsにマッチするかチェック
+        for pattern in &compiled_patterns {
+            if pattern.is_match(&relative_path) {
+                matched_files.push(relative_path.clone());
+                break;  // 1つのパターンにマッチすれば十分
+            }
+        }
+    }
+    
+    // 重複を除去してソート
+    matched_files.sort();
+    matched_files.dedup();
+    
+    Ok(matched_files)
+}
+
+/// パターンにマッチしたファイルパスをtestcaseで解決する
+fn resolve_testcase(file_path: &str, pattern: &Regex, testcase: &str) -> Option<String> {
+    if let Some(captures) = pattern.captures(file_path) {
+        let mut resolved = testcase.to_string();
+        // $1, $2, ... をキャプチャグループの値に置換
+        for i in 1..=captures.len() - 1 {
+            if let Some(capture) = captures.get(i) {
+                let placeholder = format!("${}", i);
+                resolved = resolved.replace(&placeholder, capture.as_str());
+            }
+        }
+        Some(resolved)
+    } else {
+        None
+    }
+}
+
 /// テストコマンドを実行する
 fn execute_test_command(
     run_test: &crate::config::RunTestConfig,
@@ -154,6 +244,30 @@ fn execute_test_command(
 pub fn process_test(root_dir: &Path) -> anyhow::Result<()> {
     let config = Config::load_from_root(root_dir)?;
     
+    // mock_patternsでマッチしたファイルを取得し、解決済みキーでHashMapに保存
+    let mock_files = find_mock_matched_files(&config, root_dir)?;
+    let mut mock_map: HashMap<String, Vec<String>> = HashMap::new();
+    
+    // 各mock_patternパターンをコンパイル
+    let mut mock_patterns_compiled = Vec::new();
+    for mapping in &config.mock_patterns {
+        let pattern = Regex::new(&mapping.pattern)
+            .with_context(|| format!("Invalid regex pattern: {}", mapping.pattern))?;
+        mock_patterns_compiled.push((pattern, &mapping.testcase, mapping.mount_path.as_deref()));
+    }
+    
+    // モックファイルを解決してHashMapに保存（パターン情報も保持）
+    let mut mock_file_info: Vec<(String, String, Option<&str>)> = Vec::new(); // (mock_file, resolved_key, mount_path)
+    for mock_file in &mock_files {
+        for (pattern, testcase, mount_path) in &mock_patterns_compiled {
+            if let Some(resolved_key) = resolve_testcase(mock_file, pattern, testcase) {
+                mock_map.entry(resolved_key.clone()).or_insert_with(Vec::new).push(mock_file.clone());
+                mock_file_info.push((mock_file.clone(), resolved_key, *mount_path));
+                break;  // 1つのパターンにマッチすれば十分
+            }
+        }
+    }
+    
     // driver_patternsでマッチしたファイルを取得
     let driver_files = find_driver_matched_files(&config, root_dir)?;
     
@@ -169,8 +283,13 @@ pub fn process_test(root_dir: &Path) -> anyhow::Result<()> {
     
     info!("Found {} driver file(s) to test", driver_files.len());
     
-    // マウント情報を作成
-    let mount_args = podman_mount::build_mount_args(root_dir);
+    // 各driver_patternパターンをコンパイル
+    let mut driver_patterns_compiled = Vec::new();
+    for mapping in &config.driver_patterns {
+        let pattern = Regex::new(&mapping.pattern)
+            .with_context(|| format!("Invalid regex pattern: {}", mapping.pattern))?;
+        driver_patterns_compiled.push((pattern, &mapping.testcase));
+    }
     
     // 各ファイルに対して一つずつ実行
     let mut success_count = 0;
@@ -178,6 +297,68 @@ pub fn process_test(root_dir: &Path) -> anyhow::Result<()> {
     
     for driver_file in &driver_files {
         info!("Testing driver file: {}", driver_file);
+        
+        // driver_fileをtestcaseで解決
+        let mut driver_resolved_key: Option<String> = None;
+        for (pattern, testcase) in &driver_patterns_compiled {
+            if let Some(resolved) = resolve_testcase(driver_file, pattern, testcase) {
+                driver_resolved_key = Some(resolved);
+                break;  // 1つのパターンにマッチすれば十分
+            }
+        }
+        
+        // ベースのマウント情報を作成
+        let mut mount_args = podman_mount::build_mount_args(root_dir);
+        
+        // 解決キーがHashMapに存在する場合、対応するモックファイルを読み込み専用マウントで追加
+        if let Some(ref resolved_key) = driver_resolved_key {
+            if let Some(mock_paths) = mock_map.get(resolved_key) {
+                for mock_path in mock_paths {
+                    // このモックファイルに対応するmount_pathを取得
+                    let mount_path_template = mock_file_info.iter()
+                        .find(|(file, key, _)| file == mock_path && key == resolved_key)
+                        .and_then(|(_, _, mount_path)| *mount_path)
+                        .ok_or_else(|| anyhow::anyhow!(
+                            "mount_path is required for mock file: {} (matched pattern in mock_patterns)",
+                            mock_path
+                        ))?;
+                    
+                    // mount_pathテンプレートを解決（$1, $2, ...をキャプチャグループの値に置換）
+                    let pattern = mock_patterns_compiled.iter()
+                        .find(|(p, _, _)| p.is_match(mock_path))
+                        .map(|(p, _, _)| p)
+                        .ok_or_else(|| anyhow::anyhow!(
+                            "Failed to find matching pattern for mock file: {}",
+                            mock_path
+                        ))?;
+                    
+                    let captures = pattern.captures(mock_path)
+                        .ok_or_else(|| anyhow::anyhow!(
+                            "Failed to capture groups from mock file path: {} with pattern",
+                            mock_path
+                        ))?;
+                    
+                    let mut original_path = mount_path_template.to_string();
+                    for i in 1..=captures.len() - 1 {
+                        if let Some(capture) = captures.get(i) {
+                            let placeholder = format!("${}", i);
+                            original_path = original_path.replace(&placeholder, capture.as_str());
+                        }
+                    }
+                    
+                    let mock_abs_path = root_dir.join(mock_path);
+                    let original_abs_path = root_dir.join(&original_path);
+                    
+                    // 読み込み専用マウント: -v {mock_path}:{original_path}:ro
+                    mount_args.push("-v".to_string());
+                    mount_args.push(format!("{}:{}:ro", 
+                        mock_abs_path.display(), 
+                        original_abs_path.display()));
+                    
+                    info!("Mounting mock file: {} -> {} (read-only)", mock_path, original_path);
+                }
+            }
+        }
         
         match execute_test_command(
             &run_test,

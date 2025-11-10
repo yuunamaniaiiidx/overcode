@@ -65,7 +65,7 @@ args = ["test"]
         let toml_content = r#"
 [[driver_patterns]]
 pattern = "(.+)/(.+)/driver/.+.(.+)"
-resolution = "$1/$2.$3"
+testcase = "$1/$2.$3"
 
 [command.test]
 command = "cargo"

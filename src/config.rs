@@ -32,7 +32,10 @@ pub struct IgnoreEntry {
 #[derive(Debug, Deserialize, Clone)]
 pub struct MappingEntry {
     pub pattern: String,
-    pub resolution: String,
+    #[serde(rename = "testcase")]
+    pub testcase: String,
+    #[serde(default)]
+    pub mount_path: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
