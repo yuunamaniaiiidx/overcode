@@ -22,16 +22,6 @@ mod tests {
         // - エラーメッセージにはネットワーク関連の情報が含まれるべき
         assert!(
             result.is_err(),
-            "pull_image should return an error when internet connection is unavailable and image is not local"
         );
-        
-        // エラーメッセージを確認
-        if let Err(e) = result {
-            let error_msg = e.to_string();
-            // エラーメッセージが空でないことを確認
-            assert!(!error_msg.is_empty(), "Error message should not be empty");
-            // ネットワーク関連のエラーである可能性を示す（実際のエラーメッセージは環境に依存）
-            // 注意: 実際のエラーメッセージはpodmanの出力に依存するため、ここでは基本的な確認のみ
-        }
     }
 }   

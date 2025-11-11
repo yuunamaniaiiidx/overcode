@@ -1,10 +1,13 @@
 use anyhow::Context;
-use std::path::Path;
-use std::process::Command;
-use std::io::Write;
-use std::collections::HashMap;
-use regex::Regex;
+use filetime::{set_file_mtime, FileTime};
 use ignore::WalkBuilder;
+use regex::Regex;
+use std::collections::HashMap;
+use std::fs;
+use std::io::Write;
+use std::path::{Path, PathBuf};
+use std::process::Command;
+use std::time::SystemTime;
 use crate::config::Config;
 use crate::podman_mount;
 use log::{info, warn};
@@ -171,6 +174,25 @@ fn resolve_testcase(file_path: &str, pattern: &Regex, testcase: &str) -> Option<
     }
 }
 
+fn refresh_mock_mtime(path: &Path) -> anyhow::Result<()> {
+    let file_time = FileTime::from_system_time(SystemTime::now());
+    set_file_mtime(path, file_time)
+        .with_context(|| format!("Failed to update mtime for mock file: {}", path.display()))?;
+    Ok(())
+}
+
+fn restore_mock_mtime(backups: &[(PathBuf, FileTime)]) -> anyhow::Result<()> {
+    for (path, original_time) in backups {
+        set_file_mtime(path, *original_time).with_context(|| {
+            format!(
+                "Failed to restore original mtime for mock file: {}",
+                path.display()
+            )
+        })?;
+    }
+    Ok(())
+}
+
 /// テストコマンドを実行する
 fn execute_test_command(
     run_test: &crate::config::RunTestConfig,
@@ -321,6 +343,7 @@ pub fn process_test(root_dir: &Path) -> anyhow::Result<()> {
         
         // ベースのマウント情報を作成
         let mut mount_args = podman_mount::build_mount_args(root_dir);
+        let mut mock_mtime_backups: Vec<(PathBuf, FileTime)> = Vec::new();
         
         // 解決キーがHashMapに存在する場合、対応するモックファイルを読み込み専用マウントで追加
         if let Some(ref resolved_key) = driver_resolved_key {
@@ -360,6 +383,16 @@ pub fn process_test(root_dir: &Path) -> anyhow::Result<()> {
                     
                     let mock_abs_path = root_dir.join(mock_path);
                     let original_abs_path = root_dir.join(&original_path);
+
+                    let metadata = fs::metadata(&mock_abs_path).with_context(|| {
+                        format!(
+                            "Failed to retrieve metadata for mock file: {}",
+                            mock_abs_path.display()
+                        )
+                    })?;
+                    let original_time = FileTime::from_last_modification_time(&metadata);
+                    mock_mtime_backups.push((mock_abs_path.clone(), original_time));
+                    refresh_mock_mtime(&mock_abs_path)?;
                     
                     // 読み込み専用マウント: -v {mock_path}:{original_path}:ro
                     mount_args.push("-v".to_string());
@@ -372,12 +405,16 @@ pub fn process_test(root_dir: &Path) -> anyhow::Result<()> {
             }
         }
         
-        match execute_test_command(
+        let command_result = execute_test_command(
             &run_test,
             driver_file,
             root_dir,
             &mount_args,
-        ) {
+        );
+
+        restore_mock_mtime(&mock_mtime_backups)?;
+
+        match command_result {
             Ok(_) => {
                 info!("✓ Test passed for: {}", driver_file);
                 success_count += 1;

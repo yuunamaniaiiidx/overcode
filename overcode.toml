@@ -26,6 +26,24 @@ replace_rule = [
   { pattern = "src/([^/]+)/driver/([^/]+)/([^/]+)\\.rs", replace = "$1::driver_$2_$3" },
 ]
 
+# [command.test]
+# image = "docker.io/library/rust:latest"
+# command = "bash"
+# args = ["test.sh", "{driver_file}"]
+
+# replace_rule = [
+#   { pattern = "src/([^/]+)/driver/([^/]+)/([^/]+)\\.rs", replace = "$1::driver_$2_$3" },
+# ]
+
+# [command.test]
+# image = "docker.io/library/rust:latest"
+# command = "head"
+# args = ["-n", "10", "{driver_file}"]
+
+# replace_rule = [
+#     { pattern = "src/([^/]+)/driver/([^/]+)/([^/]+)\\.rs", replace = "src/$2.rs" },
+# ]
+
 [command.run]
 image = "docker.io/library/rust:latest"
 command = "cargo"
