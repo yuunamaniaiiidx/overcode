@@ -24,14 +24,16 @@ mod tests {
     }
 
     #[test]
-    fn test_ensure_images_with_images_config() {
+    fn test_ensure_images_with_command_config() {
         let temp_dir = TempDir::new().unwrap();
         let config_path = temp_dir.path().join("overcode.toml");
         
         // イメージが指定された設定ファイルを作成
         let toml_content = r#"
-[[images]]
-name = "docker.io/library/ubuntu:latest"
+[command.test]
+image = "docker.io/library/ubuntu:latest"
+command = "cargo"
+args = ["test"]
 "#;
         fs::write(&config_path, toml_content).unwrap();
         
@@ -57,19 +59,28 @@ name = "docker.io/library/ubuntu:latest"
         
         // 複数のイメージが指定された設定ファイルを作成
         let toml_content = r#"
-[[images]]
-name = "docker.io/library/ubuntu:latest"
+[command.test]
+image = "docker.io/library/ubuntu:latest"
+command = "cargo"
+args = ["test"]
 
-[[images]]
-name = "docker.io/library/rust:latest"
+[command.run]
+image = "docker.io/library/rust:latest"
+command = "cargo"
+args = ["run"]
 "#;
         fs::write(&config_path, toml_content).unwrap();
         
         // 設定が正しく読み込まれることを確認
         let config = Config::load_from_root(temp_dir.path()).unwrap();
-        assert_eq!(config.images.len(), 2);
-        assert_eq!(config.images[0].name, "docker.io/library/ubuntu:latest");
-        assert_eq!(config.images[1].name, "docker.io/library/rust:latest");
+        // 新しい実装では、command.test.imageとcommand.run.imageからイメージを取得する
+        // このテストは、commandセクションが正しく読み込まれることを確認する
+        assert!(config.command.is_some());
+        let command = config.command.unwrap();
+        assert!(command.test.is_some());
+        assert!(command.run.is_some());
+        assert_eq!(command.test.unwrap().image, Some("docker.io/library/ubuntu:latest".to_string()));
+        assert_eq!(command.run.unwrap().image, Some("docker.io/library/rust:latest".to_string()));
     }
 }
 

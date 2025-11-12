@@ -22,7 +22,7 @@ mod tests {
         
         // ファイルの内容を確認
         let content = fs::read_to_string(&config_path).unwrap();
-        assert!(content.contains("# Podman images"));
+        assert!(content.contains("# overcode.toml"));
     }
 
     #[test]
@@ -75,7 +75,7 @@ testcase = "test"
         let config = result.unwrap();
         assert!(config.driver_patterns.is_empty());
         assert!(config.mock_patterns.is_empty());
-        assert!(config.images.is_empty());
+        assert!(config.command.is_none());
     }
 
 }

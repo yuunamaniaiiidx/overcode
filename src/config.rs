@@ -11,8 +11,6 @@ pub struct Config {
     pub driver_patterns: Vec<MappingEntry>,
     #[serde(default)]
     pub mock_patterns: Vec<MappingEntry>,
-    #[serde(default)]
-    pub images: Vec<ImageEntry>,
     pub command: Option<CommandConfig>,
 }
 
@@ -23,11 +21,6 @@ pub struct MappingEntry {
     pub testcase: String,
     #[serde(default)]
     pub mount_path: Option<String>,
-}
-
-#[derive(Debug, Deserialize, Clone)]
-pub struct ImageEntry {
-    pub name: String,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -73,7 +66,6 @@ impl Config {
             return Ok(Config {
                 driver_patterns: Vec::new(),
                 mock_patterns: Vec::new(),
-                images: Vec::new(),
                 command: None,
             });
         }
@@ -83,9 +75,7 @@ impl Config {
 
     /// 設定ファイルのテンプレート内容を返す
     fn get_template_content() -> &'static str {
-        r#"# Podman images to pull during init
-# [[images]]
-# name = "docker.io/library/ubuntu:latest"
+        r#"# overcode.toml configuration file
 "#
     }
 

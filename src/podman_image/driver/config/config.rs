@@ -8,12 +8,8 @@ mod tests {
     /// 
     /// podman_image::ensure_images関数は以下の動作をconfigに期待している:
     /// 1. Config::load_from_root(root_dir)がResult<Config>を返す
-    /// 2. config.imagesがVec<ImageEntry>である
-    /// 3. config.images.is_empty()が動作する
-    /// 4. config.images.len()が動作する
-    /// 5. config.imagesをイテレートできる
-    /// 6. 各image_entryがnameフィールドを持つ
-    /// 7. image_entry.nameが&strとして取得できる
+    /// 2. config.command.test.imageとconfig.command.run.imageからイメージを取得できる
+    /// 3. イメージが指定されていない場合は空のHashSetが返される
 
     #[test]
     fn test_config_load_from_root_returns_result() {
@@ -26,199 +22,151 @@ mod tests {
     }
 
     #[test]
-    fn test_config_images_is_vec_image_entry() {
-        // config.imagesがVec<ImageEntry>であることを確認
+    fn test_config_command_test_image_exists() {
+        // command.test.imageが存在することを確認
         let temp_dir = TempDir::new().unwrap();
         let config_path = temp_dir.path().join("overcode.toml");
         
         let toml_content = r#"
-[[images]]
-name = "docker.io/library/ubuntu:latest"
+[command.test]
+image = "docker.io/library/ubuntu:latest"
+command = "cargo"
+args = ["test"]
 "#;
         fs::write(&config_path, toml_content).unwrap();
         
         let config = Config::load_from_root(temp_dir.path()).unwrap();
         
-        // imagesがVec<ImageEntry>であることを確認
-        assert_eq!(config.images.len(), 1);
+        // command.test.imageが存在することを確認
+        assert!(config.command.is_some());
+        let command = config.command.unwrap();
+        assert!(command.test.is_some());
+        assert_eq!(command.test.unwrap().image, Some("docker.io/library/ubuntu:latest".to_string()));
     }
 
     #[test]
-    fn test_config_images_is_empty_works() {
-        // config.images.is_empty()が動作することを確認
-        let temp_dir = TempDir::new().unwrap();
-        
-        // 設定ファイルが存在しない場合、空のimagesが返される
-        let config = Config::load_from_root(temp_dir.path()).unwrap();
-        assert!(config.images.is_empty());
-        
-        // 明示的に空のimagesを指定した場合
-        let config_path = temp_dir.path().join("overcode.toml");
-        let toml_content = r#"
-# imagesセクションなし
-"#;
-        fs::write(&config_path, toml_content).unwrap();
-        
-        let config = Config::load_from_root(temp_dir.path()).unwrap();
-        assert!(config.images.is_empty());
-    }
-
-    #[test]
-    fn test_config_images_len_works() {
-        // config.images.len()が動作することを確認
+    fn test_config_command_run_image_exists() {
+        // command.run.imageが存在することを確認
         let temp_dir = TempDir::new().unwrap();
         let config_path = temp_dir.path().join("overcode.toml");
         
         let toml_content = r#"
-[[images]]
-name = "docker.io/library/ubuntu:latest"
-
-[[images]]
-name = "docker.io/library/rust:latest"
+[command.run]
+image = "docker.io/library/rust:latest"
+command = "cargo"
+args = ["run"]
 "#;
         fs::write(&config_path, toml_content).unwrap();
         
         let config = Config::load_from_root(temp_dir.path()).unwrap();
         
-        // len()が正しく動作することを確認
-        assert_eq!(config.images.len(), 2);
+        // command.run.imageが存在することを確認
+        assert!(config.command.is_some());
+        let command = config.command.unwrap();
+        assert!(command.run.is_some());
+        assert_eq!(command.run.unwrap().image, Some("docker.io/library/rust:latest".to_string()));
     }
 
     #[test]
-    fn test_config_images_can_be_iterated() {
-        // config.imagesをイテレートできることを確認
+    fn test_config_no_images_when_command_missing() {
+        // commandセクションがない場合、イメージが取得できないことを確認
+        let temp_dir = TempDir::new().unwrap();
+        
+        // 設定ファイルが存在しない場合、commandはNone
+        let config = Config::load_from_root(temp_dir.path()).unwrap();
+        assert!(config.command.is_none());
+        
+        // 明示的にcommandセクションがない場合
+        let config_path = temp_dir.path().join("overcode.toml");
+        let toml_content = r#"
+# commandセクションなし
+"#;
+        fs::write(&config_path, toml_content).unwrap();
+        
+        let config = Config::load_from_root(temp_dir.path()).unwrap();
+        assert!(config.command.is_none());
+    }
+
+    #[test]
+    fn test_config_both_test_and_run_images() {
+        // command.test.imageとcommand.run.imageの両方が存在する場合
         let temp_dir = TempDir::new().unwrap();
         let config_path = temp_dir.path().join("overcode.toml");
         
         let toml_content = r#"
-[[images]]
-name = "docker.io/library/ubuntu:latest"
+[command.test]
+image = "docker.io/library/ubuntu:latest"
+command = "cargo"
+args = ["test"]
 
-[[images]]
-name = "docker.io/library/rust:latest"
+[command.run]
+image = "docker.io/library/rust:latest"
+command = "cargo"
+args = ["run"]
 "#;
         fs::write(&config_path, toml_content).unwrap();
         
         let config = Config::load_from_root(temp_dir.path()).unwrap();
         
-        // イテレートできることを確認
-        let mut count = 0;
-        for _image_entry in &config.images {
-            count += 1;
-        }
-        assert_eq!(count, 2);
+        // 両方のイメージが存在することを確認
+        assert!(config.command.is_some());
+        let command = config.command.unwrap();
+        assert!(command.test.is_some());
+        assert!(command.run.is_some());
+        assert_eq!(command.test.unwrap().image, Some("docker.io/library/ubuntu:latest".to_string()));
+        assert_eq!(command.run.unwrap().image, Some("docker.io/library/rust:latest".to_string()));
     }
 
     #[test]
-    fn test_image_entry_has_name_field() {
-        // 各image_entryがnameフィールドを持つことを確認
+    fn test_config_duplicate_images_handled() {
+        // command.test.imageとcommand.run.imageが同じ場合、重複削除されることを確認
+        // （実際の重複削除はpodman_image.rsで行われる）
         let temp_dir = TempDir::new().unwrap();
         let config_path = temp_dir.path().join("overcode.toml");
         
         let toml_content = r#"
-[[images]]
-name = "docker.io/library/ubuntu:latest"
+[command.test]
+image = "docker.io/library/rust:latest"
+command = "cargo"
+args = ["test"]
+
+[command.run]
+image = "docker.io/library/rust:latest"
+command = "cargo"
+args = ["run"]
 "#;
         fs::write(&config_path, toml_content).unwrap();
         
         let config = Config::load_from_root(temp_dir.path()).unwrap();
         
-        // nameフィールドが存在することを確認
-        assert_eq!(config.images[0].name, "docker.io/library/ubuntu:latest");
+        // 両方のイメージが同じであることを確認
+        assert!(config.command.is_some());
+        let command = config.command.unwrap();
+        let test_image = command.test.unwrap().image;
+        let run_image = command.run.unwrap().image;
+        assert_eq!(test_image, run_image);
+        assert_eq!(test_image, Some("docker.io/library/rust:latest".to_string()));
     }
 
     #[test]
-    fn test_image_entry_name_is_str() {
-        // image_entry.nameが&strとして取得できることを確認
+    fn test_config_image_optional() {
+        // imageフィールドがオプショナルであることを確認
         let temp_dir = TempDir::new().unwrap();
         let config_path = temp_dir.path().join("overcode.toml");
         
         let toml_content = r#"
-[[images]]
-name = "docker.io/library/ubuntu:latest"
+[command.test]
+command = "cargo"
+args = ["test"]
 "#;
         fs::write(&config_path, toml_content).unwrap();
         
         let config = Config::load_from_root(temp_dir.path()).unwrap();
         
-        // nameが&strとして取得できることを確認
-        for image_entry in &config.images {
-            let image_name: &str = &image_entry.name;
-            assert_eq!(image_name, "docker.io/library/ubuntu:latest");
-        }
-    }
-
-    #[test]
-    fn test_config_load_from_root_with_missing_file_returns_empty_images() {
-        // 設定ファイルが存在しない場合、空のimagesが返されることを確認
-        // これはpodman_image.rsが早期リターンするために必要な動作
-        let temp_dir = TempDir::new().unwrap();
-        
-        // 設定ファイルを作成しない
-        let config = Config::load_from_root(temp_dir.path()).unwrap();
-        
-        // 空のimagesが返されることを確認
-        assert!(config.images.is_empty());
-    }
-
-    #[test]
-    fn test_config_images_multiple_entries() {
-        // 複数のイメージエントリが正しく読み込まれることを確認
-        let temp_dir = TempDir::new().unwrap();
-        let config_path = temp_dir.path().join("overcode.toml");
-        
-        let toml_content = r#"
-[[images]]
-name = "docker.io/library/ubuntu:latest"
-
-[[images]]
-name = "docker.io/library/rust:latest"
-
-[[images]]
-name = "docker.io/library/python:latest"
-"#;
-        fs::write(&config_path, toml_content).unwrap();
-        
-        let config = Config::load_from_root(temp_dir.path()).unwrap();
-        
-        // すべてのイメージが読み込まれることを確認
-        assert_eq!(config.images.len(), 3);
-        assert_eq!(config.images[0].name, "docker.io/library/ubuntu:latest");
-        assert_eq!(config.images[1].name, "docker.io/library/rust:latest");
-        assert_eq!(config.images[2].name, "docker.io/library/python:latest");
-    }
-
-    #[test]
-    fn test_config_images_iteration_with_name_access() {
-        // podman_image.rsの実際の使用パターンを再現
-        // for image_entry in &config.images {
-        //     let image_name = &image_entry.name;
-        //     ...
-        // }
-        let temp_dir = TempDir::new().unwrap();
-        let config_path = temp_dir.path().join("overcode.toml");
-        
-        let toml_content = r#"
-[[images]]
-name = "docker.io/library/ubuntu:latest"
-
-[[images]]
-name = "docker.io/library/rust:latest"
-"#;
-        fs::write(&config_path, toml_content).unwrap();
-        
-        let config = Config::load_from_root(temp_dir.path()).unwrap();
-        
-        // podman_image.rsと同じパターンでアクセスできることを確認
-        let mut names = Vec::new();
-        for image_entry in &config.images {
-            let image_name = &image_entry.name;
-            names.push(image_name.clone());
-        }
-        
-        assert_eq!(names.len(), 2);
-        assert_eq!(names[0], "docker.io/library/ubuntu:latest");
-        assert_eq!(names[1], "docker.io/library/rust:latest");
+        // imageがNoneであることを確認
+        assert!(config.command.is_some());
+        let command = config.command.unwrap();
+        assert!(command.test.is_some());
+        assert_eq!(command.test.unwrap().image, None);
     }
 }
-

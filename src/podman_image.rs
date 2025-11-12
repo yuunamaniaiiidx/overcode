@@ -1,5 +1,6 @@
 use std::path::Path;
 use std::process::Command;
+use std::collections::HashSet;
 use log::{info, warn};
 use crate::config;
 use crate::podman_image_download;
@@ -21,15 +22,30 @@ fn image_exists(image: &str) -> bool {
 pub fn ensure_images(root_dir: &Path) -> Result<()> {
     let config = config::Config::load_from_root(root_dir)?;
     
-    if config.images.is_empty() {
-        info!("No images specified in config");
+    // command.test.imageとcommand.run.imageからイメージを収集
+    let mut images = HashSet::new();
+    
+    if let Some(command) = &config.command {
+        if let Some(test_config) = &command.test {
+            if let Some(image) = &test_config.image {
+                images.insert(image.clone());
+            }
+        }
+        if let Some(run_config) = &command.run {
+            if let Some(image) = &run_config.image {
+                images.insert(image.clone());
+            }
+        }
+    }
+    
+    if images.is_empty() {
+        info!("No images specified in command.test or command.run");
         return Ok(());
     }
     
-    info!("Checking {} image(s)...", config.images.len());
+    info!("Checking {} image(s)...", images.len());
     
-    for image_entry in &config.images {
-        let image_name = &image_entry.name;
+    for image_name in &images {
         if image_exists(image_name) {
             info!("Image already exists: {}", image_name);
         } else {
