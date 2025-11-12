@@ -15,26 +15,12 @@ use log::{info, warn};
 /// driver_patternsのパターンにマッチしたファイルを取得する
 /// 元のファイル名（変換前）を返すことで、{src_name}.driver.{testtitle}.rs形式のファイルを個別に実行できる
 fn find_driver_matched_files(config: &Config, root_dir: &Path) -> anyhow::Result<Vec<String>> {
-    let ignore_patterns = config.get_ignore_patterns();
-    let ignore_files = config.get_ignore_files();
-    
     // WalkBuilderを構築
     let mut builder = WalkBuilder::new(root_dir);
     builder
         .hidden(false)
         .git_ignore(false)  // デフォルトの.gitignoreは無効化
         .git_exclude(true);
-    
-    // 設定から読み込んだignoreファイルを追加
-    for ignore_file in ignore_files {
-        let ignore_path = root_dir.join(&ignore_file);
-        if ignore_path.exists() {
-            // WalkBuilderにignoreファイルを追加
-            if let Some(err) = builder.add_ignore(&ignore_path) {
-                return Err(anyhow::anyhow!("Failed to add ignore file {:?}: {}", ignore_path, err));
-            }
-        }
-    }
     
     let walker = builder.build();
     
@@ -52,12 +38,6 @@ fn find_driver_matched_files(config: &Config, root_dir: &Path) -> anyhow::Result
     for result in walker {
         let entry = result?;
         let path = entry.path();
-        
-        // ignoreパターンで除外
-        let should_ignore = ignore_patterns.iter().any(|pattern| pattern.matches(path, root_dir));
-        if should_ignore {
-            continue;
-        }
         
         // ファイルのみを処理
         if !path.is_file() {
@@ -87,26 +67,12 @@ fn find_driver_matched_files(config: &Config, root_dir: &Path) -> anyhow::Result
 
 /// mock_patternsのパターンにマッチしたファイルを取得する
 fn find_mock_matched_files(config: &Config, root_dir: &Path) -> anyhow::Result<Vec<String>> {
-    let ignore_patterns = config.get_ignore_patterns();
-    let ignore_files = config.get_ignore_files();
-    
     // WalkBuilderを構築
     let mut builder = WalkBuilder::new(root_dir);
     builder
         .hidden(false)
         .git_ignore(false)  // デフォルトの.gitignoreは無効化
         .git_exclude(true);
-    
-    // 設定から読み込んだignoreファイルを追加
-    for ignore_file in ignore_files {
-        let ignore_path = root_dir.join(&ignore_file);
-        if ignore_path.exists() {
-            // WalkBuilderにignoreファイルを追加
-            if let Some(err) = builder.add_ignore(&ignore_path) {
-                return Err(anyhow::anyhow!("Failed to add ignore file {:?}: {}", ignore_path, err));
-            }
-        }
-    }
     
     let walker = builder.build();
     
@@ -124,12 +90,6 @@ fn find_mock_matched_files(config: &Config, root_dir: &Path) -> anyhow::Result<V
     for result in walker {
         let entry = result?;
         let path = entry.path();
-        
-        // ignoreパターンで除外
-        let should_ignore = ignore_patterns.iter().any(|pattern| pattern.matches(path, root_dir));
-        if should_ignore {
-            continue;
-        }
         
         // ファイルのみを処理
         if !path.is_file() {

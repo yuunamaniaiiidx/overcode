@@ -22,8 +22,7 @@ mod tests {
         
         // ファイルの内容を確認
         let content = fs::read_to_string(&config_path).unwrap();
-        assert!(content.contains("[[ignores]]"));
-        assert!(content.contains("file = \".gitignore\""));
+        assert!(content.contains("# Podman images"));
     }
 
     #[test]
@@ -50,11 +49,9 @@ mod tests {
         
         // 有効なTOMLファイルを作成
         let toml_content = r#"
-[[ignores]]
-file = ".gitignore"
-
-[[ignores]]
-path = ".git"
+[[driver_patterns]]
+pattern = "test"
+testcase = "test"
 "#;
         fs::write(&config_path, toml_content).unwrap();
         
@@ -63,7 +60,7 @@ path = ".git"
         assert!(result.is_ok());
         
         let config = result.unwrap();
-        assert_eq!(config.ignores.len(), 2);
+        assert_eq!(config.driver_patterns.len(), 1);
     }
 
     #[test]
@@ -76,53 +73,10 @@ path = ".git"
         
         // 空の設定が返されることを確認
         let config = result.unwrap();
-        assert!(config.ignores.is_empty());
         assert!(config.driver_patterns.is_empty());
         assert!(config.mock_patterns.is_empty());
         assert!(config.images.is_empty());
     }
 
-    #[test]
-    fn test_config_get_ignore_patterns() {
-        let temp_dir = TempDir::new().unwrap();
-        let config_path = temp_dir.path().join("overcode.toml");
-        
-        let toml_content = r#"
-[[ignores]]
-path = ".git"
-
-[[ignores]]
-file = ".gitignore"
-"#;
-        fs::write(&config_path, toml_content).unwrap();
-        
-        let config = Config::load_from_root(temp_dir.path()).unwrap();
-        let patterns = config.get_ignore_patterns();
-        
-        // pathが指定されたignoreのみがパターンとして返される
-        assert_eq!(patterns.len(), 1);
-    }
-
-    #[test]
-    fn test_config_get_ignore_files() {
-        let temp_dir = TempDir::new().unwrap();
-        let config_path = temp_dir.path().join("overcode.toml");
-        
-        let toml_content = r#"
-[[ignores]]
-path = ".git"
-
-[[ignores]]
-file = ".gitignore"
-"#;
-        fs::write(&config_path, toml_content).unwrap();
-        
-        let config = Config::load_from_root(temp_dir.path()).unwrap();
-        let files = config.get_ignore_files();
-        
-        // fileが指定されたignoreのみがファイルとして返される
-        assert_eq!(files.len(), 1);
-        assert_eq!(files[0], ".gitignore");
-    }
 }
 

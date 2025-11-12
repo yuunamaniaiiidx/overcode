@@ -8,22 +8,12 @@ use log::info;
 #[derive(Debug, Deserialize)]
 pub struct Config {
     #[serde(default)]
-    pub ignores: Vec<IgnoreEntry>,
-    #[serde(default)]
     pub driver_patterns: Vec<MappingEntry>,
     #[serde(default)]
     pub mock_patterns: Vec<MappingEntry>,
     #[serde(default)]
     pub images: Vec<ImageEntry>,
     pub command: Option<CommandConfig>,
-}
-
-#[derive(Debug, Deserialize, Clone)]
-pub struct IgnoreEntry {
-    #[serde(default)]
-    pub path: Option<String>,
-    #[serde(default)]
-    pub file: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -62,115 +52,6 @@ pub struct RunTestConfig {
     pub replace_rule: Vec<ReplaceRule>,
 }
 
-pub struct IgnorePattern {
-    pattern: String,
-}
-
-impl IgnorePattern {
-    pub fn new(pattern: &str) -> Self {
-        Self {
-            pattern: pattern.to_string(),
-        }
-    }
-
-    /// パスがこのパターンにマッチするかチェック
-    /// gitignoreライクな動作:
-    /// - パスの任意の部分にパターンが含まれるかチェック
-    /// - ディレクトリ名やファイル名が一致するかチェック
-    /// - ワイルドカード（*）をサポート
-    pub fn matches(&self, path: &Path, root: &Path) -> bool {
-        // 相対パスに変換
-        let relative_path = match path.strip_prefix(root) {
-            Ok(p) => p,
-            Err(_) => return false,
-        };
-
-        // パターンを正規表現に変換（シンプルな実装）
-        let pattern = self.pattern.as_str();
-        
-        // パスの各コンポーネントをチェック
-        for component in relative_path.components() {
-            let component_str = component.as_os_str().to_string_lossy();
-            
-            // 完全一致
-            if component_str == pattern {
-                return true;
-            }
-            
-            // ワイルドカードパターンのマッチング
-            if self.matches_wildcard(&component_str, pattern) {
-                return true;
-            }
-        }
-        
-        // パス全体の文字列としてもチェック
-        let path_str = relative_path.to_string_lossy();
-        if path_str.contains(pattern) {
-            return true;
-        }
-        
-        // ワイルドカードパターンでパス全体をチェック
-        if self.matches_wildcard(&path_str, pattern) {
-            return true;
-        }
-        
-        false
-    }
-
-    /// シンプルなワイルドカードマッチング（*のみサポート）
-    fn matches_wildcard(&self, text: &str, pattern: &str) -> bool {
-        if !pattern.contains('*') {
-            return false;
-        }
-
-        // パターンを*で分割
-        let parts: Vec<&str> = pattern.split('*').collect();
-        
-        if parts.is_empty() {
-            return false;
-        }
-
-        // 最初の部分で開始するかチェック
-        if !parts[0].is_empty() && !text.starts_with(parts[0]) {
-            return false;
-        }
-
-        // 最後の部分で終わるかチェック
-        if parts.len() > 1 {
-            let last_part = parts[parts.len() - 1];
-            if !last_part.is_empty() && !text.ends_with(last_part) {
-                return false;
-            }
-        }
-
-        // 中間部分が順番に含まれているかチェック
-        let mut search_start = 0;
-        for (i, part) in parts.iter().enumerate() {
-            if part.is_empty() {
-                continue;
-            }
-            
-            if i == 0 {
-                search_start = part.len();
-            } else if i == parts.len() - 1 {
-                // 最後の部分は既にチェック済み
-                break;
-            } else {
-                match text[search_start..].find(part) {
-                    Some(pos) => {
-                        search_start += pos + part.len();
-                    }
-                    None => {
-                        return false;
-                    }
-                }
-            }
-        }
-
-        true
-    }
-}
-
 impl Config {
     /// overcode.tomlファイルを読み込む
     pub fn load(config_path: &Path) -> Result<Self> {
@@ -190,7 +71,6 @@ impl Config {
         if !config_path.exists() {
             // 設定ファイルが存在しない場合は空の設定を返す
             return Ok(Config {
-                ignores: Vec::new(),
                 driver_patterns: Vec::new(),
                 mock_patterns: Vec::new(),
                 images: Vec::new(),
@@ -201,33 +81,9 @@ impl Config {
         Self::load(&config_path)
     }
 
-    /// ignoreパターンのリストを取得
-    pub fn get_ignore_patterns(&self) -> Vec<IgnorePattern> {
-        self.ignores
-            .iter()
-            .filter_map(|entry| {
-                entry.path.as_ref().map(|p| IgnorePattern::new(p))
-            })
-            .collect()
-    }
-
-    /// ignoreファイルのリストを取得
-    pub fn get_ignore_files(&self) -> Vec<String> {
-        self.ignores
-            .iter()
-            .filter_map(|entry| entry.file.clone())
-            .collect()
-    }
-
     /// 設定ファイルのテンプレート内容を返す
     fn get_template_content() -> &'static str {
-        r#"[[ignores]]
-file = ".gitignore"
-
-[[ignores]]
-path = ".git"
-
-# Podman images to pull during init
+        r#"# Podman images to pull during init
 # [[images]]
 # name = "docker.io/library/ubuntu:latest"
 "#

@@ -8,23 +8,21 @@ mod tests {
     /// 
     /// test::process_test関数とfind_driver_matched_files関数は以下の動作をconfigに期待している:
     /// 1. Config::load_from_root(root_dir)がResult<Config>を返す
-    /// 2. config.get_ignore_patterns()がVec<IgnorePattern>を返す
-    /// 3. config.get_ignore_files()がVec<String>を返す
-    /// 4. config.driver_patternsがVec<MappingEntry>である
-    /// 5. config.driver_patternsをイテレートできる
-    /// 6. mapping.patternがStringである
-    /// 7. config.commandがOption<CommandConfig>である
-    /// 8. config.command.as_ref().and_then(|c| c.test.as_ref())が動作する
-    /// 9. run_testが&RunTestConfigとして取得できる
-    /// 10. run_test.commandがStringである
-    /// 11. run_test.argsがVec<String>である
-    /// 12. run_test.args.iter()が動作する
-    /// 13. run_test.args.iter().map(...)が動作する
-    /// 14. run_test.replace_ruleがVec<ReplaceRule>である
-    /// 15. run_test.replace_rule.iter()が動作する
-    /// 16. rule.patternとrule.replaceがStringである
-    /// 17. run_test.imageがOption<String>である
-    /// 18. run_test.image.as_ref()が動作する
+    /// 2. config.driver_patternsがVec<MappingEntry>である
+    /// 3. config.driver_patternsをイテレートできる
+    /// 4. mapping.patternがStringである
+    /// 5. config.commandがOption<CommandConfig>である
+    /// 6. config.command.as_ref().and_then(|c| c.test.as_ref())が動作する
+    /// 7. run_testが&RunTestConfigとして取得できる
+    /// 8. run_test.commandがStringである
+    /// 9. run_test.argsがVec<String>である
+    /// 10. run_test.args.iter()が動作する
+    /// 11. run_test.args.iter().map(...)が動作する
+    /// 12. run_test.replace_ruleがVec<ReplaceRule>である
+    /// 13. run_test.replace_rule.iter()が動作する
+    /// 14. rule.patternとrule.replaceがStringである
+    /// 15. run_test.imageがOption<String>である
+    /// 16. run_test.image.as_ref()が動作する
 
     #[test]
     fn test_config_load_from_root_returns_result() {
@@ -34,51 +32,6 @@ mod tests {
         
         // Resultが返されることを確認
         assert!(result.is_ok());
-    }
-
-    #[test]
-    fn test_config_get_ignore_patterns_returns_vec_ignore_pattern() {
-        // config.get_ignore_patterns()がVec<IgnorePattern>を返すことを確認
-        let temp_dir = TempDir::new().unwrap();
-        let config_path = temp_dir.path().join("overcode.toml");
-        
-        let toml_content = r#"
-[[ignores]]
-path = ".git"
-
-[[ignores]]
-file = ".gitignore"
-"#;
-        fs::write(&config_path, toml_content).unwrap();
-        
-        let config = Config::load_from_root(temp_dir.path()).unwrap();
-        
-        // get_ignore_patterns()がVec<IgnorePattern>を返すことを確認
-        let ignore_patterns = config.get_ignore_patterns();
-        assert_eq!(ignore_patterns.len(), 1); // pathが指定されたもののみ
-    }
-
-    #[test]
-    fn test_config_get_ignore_files_returns_vec_string() {
-        // config.get_ignore_files()がVec<String>を返すことを確認
-        let temp_dir = TempDir::new().unwrap();
-        let config_path = temp_dir.path().join("overcode.toml");
-        
-        let toml_content = r#"
-[[ignores]]
-path = ".git"
-
-[[ignores]]
-file = ".gitignore"
-"#;
-        fs::write(&config_path, toml_content).unwrap();
-        
-        let config = Config::load_from_root(temp_dir.path()).unwrap();
-        
-        // get_ignore_files()がVec<String>を返すことを確認
-        let ignore_files = config.get_ignore_files();
-        assert_eq!(ignore_files.len(), 1);
-        assert_eq!(ignore_files[0], ".gitignore");
     }
 
     #[test]
