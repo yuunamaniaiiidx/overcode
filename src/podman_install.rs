@@ -3,7 +3,6 @@ use std::process::Command;
 use std::fs;
 use log::{info, warn};
 
-/// podmanがインストールされているか確認
 fn check_podman_installed() -> bool {
     let output = Command::new("podman")
         .arg("--version")
@@ -15,7 +14,6 @@ fn check_podman_installed() -> bool {
     }
 }
 
-/// OSディストリビューションを検出
 fn detect_os() -> Result<OsType> {
     let os_release_path = "/etc/os-release";
     
@@ -42,7 +40,6 @@ fn detect_os() -> Result<OsType> {
         }
     }
     
-    // IDを優先的に確認
     if let Some(ref os_id) = id {
         match os_id.as_str() {
             "ubuntu" | "debian" => return Ok(OsType::Debian),
@@ -51,7 +48,6 @@ fn detect_os() -> Result<OsType> {
         }
     }
     
-    // ID_LIKEを確認
     if let Some(ref like) = id_like {
         if like.contains("debian") || like.contains("ubuntu") {
             return Ok(OsType::Debian);
@@ -61,7 +57,6 @@ fn detect_os() -> Result<OsType> {
         }
     }
     
-    // デフォルトはDebian系と仮定
     warn!("Unknown OS type, defaulting to Debian-based. ID: {:?}, ID_LIKE: {:?}", id, id_like);
     Ok(OsType::Debian)
 }
@@ -72,14 +67,12 @@ enum OsType {
     RedHat,
 }
 
-/// OSタイプに応じたpodmanのインストールコマンドを実行
 fn install_podman(os_type: OsType) -> Result<()> {
     let (cmd, args) = match os_type {
         OsType::Debian => {
             ("apt-get", vec!["install", "-y", "podman"])
         }
         OsType::RedHat => {
-            // dnfが利用可能か確認
             let dnf_available = Command::new("which")
                 .arg("dnf")
                 .output()
@@ -110,7 +103,6 @@ fn install_podman(os_type: OsType) -> Result<()> {
     Ok(())
 }
 
-/// podmanがインストールされていることを確認し、なければインストールする
 pub fn ensure_podman() -> Result<()> {
     if check_podman_installed() {
         info!("podman is already installed");
@@ -123,7 +115,6 @@ pub fn ensure_podman() -> Result<()> {
     
     install_podman(os_type)?;
     
-    // インストール後の確認
     if !check_podman_installed() {
         bail!("podman installation completed but verification failed");
     }

@@ -3,7 +3,6 @@ use crate::test::process_test;
 use crate::run::process_run;
 
 pub fn main() -> anyhow::Result<()> {
-    // 環境変数RUST_LOGが設定されている場合のみログを有効化
     env_logger::Builder::from_default_env().try_init().ok();
     
     let cli = Cli::parse()?;

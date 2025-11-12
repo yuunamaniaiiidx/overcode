@@ -6,7 +6,6 @@ use crate::config;
 use crate::podman_image_download;
 use anyhow::Result;
 
-/// 指定されたイメージが既に存在するか確認
 fn image_exists(image: &str) -> bool {
     let output = Command::new("podman")
         .args(&["image", "exists", image])
@@ -18,11 +17,9 @@ fn image_exists(image: &str) -> bool {
     }
 }
 
-/// 設定ファイルからイメージリストを読み込み、存在しないものはダウンロードする
 pub fn ensure_images(config_path: &Path) -> Result<()> {
     let config = config::Config::load(config_path)?;
     
-    // command.test.imageとcommand.run.imageからイメージを収集
     let mut images = HashSet::new();
     
     if let Some(command) = &config.command {

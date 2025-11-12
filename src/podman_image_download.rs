@@ -2,7 +2,6 @@ use anyhow::{Context, Result, bail};
 use std::process::Command;
 use log::info;
 
-/// 指定されたイメージをダウンロード
 pub fn pull_image(image: &str) -> Result<()> {
     info!("Pulling image: {}", image);
     

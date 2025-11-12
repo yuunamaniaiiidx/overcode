@@ -46,7 +46,6 @@ pub struct RunTestConfig {
 }
 
 impl Config {
-    /// overcode.tomlファイルを読み込む
     pub fn load(config_path: &Path) -> Result<Self> {
         let content = fs::read_to_string(config_path)
             .with_context(|| format!("Failed to read config file: {:?}", config_path))?;
@@ -57,13 +56,11 @@ impl Config {
         Ok(config)
     }
 
-    /// 設定ファイルのテンプレート内容を返す
     fn get_template_content() -> &'static str {
         r#"# overcode.toml configuration file
 "#
     }
 
-    /// 設定ファイルを初期化する（存在しない場合にテンプレートを作成）
     pub fn init_config(root_dir: &Path) -> Result<()> {
         let config_path = root_dir.join("overcode.toml");
 

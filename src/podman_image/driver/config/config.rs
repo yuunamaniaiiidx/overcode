@@ -4,28 +4,19 @@ mod tests {
     use tempfile::TempDir;
     use crate::config::Config;
 
-    /// podman_image.rsがconfigに期待する動作をテストする
-    /// 
-    /// podman_image::ensure_images関数は以下の動作をconfigに期待している:
-    /// 1. Config::load(config_path)がResult<Config>を返す
-    /// 2. config.command.test.imageとconfig.command.run.imageからイメージを取得できる
-    /// 3. イメージが指定されていない場合は空のHashSetが返される
 
     #[test]
     fn test_config_load_returns_result() {
-        // Config::loadがResult<Config>を返すことを確認
         let temp_dir = TempDir::new().unwrap();
         let config_path = temp_dir.path().join("overcode.toml");
         fs::write(&config_path, "").unwrap();
         let result = Config::load(&config_path);
         
-        // Resultが返されることを確認
         assert!(result.is_ok());
     }
 
     #[test]
     fn test_config_command_test_image_exists() {
-        // command.test.imageが存在することを確認
         let temp_dir = TempDir::new().unwrap();
         let config_path = temp_dir.path().join("overcode.toml");
         
@@ -39,7 +30,6 @@ args = ["test"]
         
         let config = Config::load(&config_path).unwrap();
         
-        // command.test.imageが存在することを確認
         assert!(config.command.is_some());
         let command = config.command.unwrap();
         assert!(command.test.is_some());
@@ -48,7 +38,6 @@ args = ["test"]
 
     #[test]
     fn test_config_command_run_image_exists() {
-        // command.run.imageが存在することを確認
         let temp_dir = TempDir::new().unwrap();
         let config_path = temp_dir.path().join("overcode.toml");
         
@@ -62,7 +51,6 @@ args = ["run"]
         
         let config = Config::load(&config_path).unwrap();
         
-        // command.run.imageが存在することを確認
         assert!(config.command.is_some());
         let command = config.command.unwrap();
         assert!(command.run.is_some());
@@ -71,10 +59,8 @@ args = ["run"]
 
     #[test]
     fn test_config_no_images_when_command_missing() {
-        // commandセクションがない場合、イメージが取得できないことを確認
         let temp_dir = TempDir::new().unwrap();
         
-        // 明示的にcommandセクションがない場合
         let config_path = temp_dir.path().join("overcode.toml");
         let toml_content = r#"
 # commandセクションなし
@@ -87,7 +73,6 @@ args = ["run"]
 
     #[test]
     fn test_config_both_test_and_run_images() {
-        // command.test.imageとcommand.run.imageの両方が存在する場合
         let temp_dir = TempDir::new().unwrap();
         let config_path = temp_dir.path().join("overcode.toml");
         
@@ -106,7 +91,6 @@ args = ["run"]
         
         let config = Config::load(&config_path).unwrap();
         
-        // 両方のイメージが存在することを確認
         assert!(config.command.is_some());
         let command = config.command.unwrap();
         assert!(command.test.is_some());
@@ -117,8 +101,6 @@ args = ["run"]
 
     #[test]
     fn test_config_duplicate_images_handled() {
-        // command.test.imageとcommand.run.imageが同じ場合、重複削除されることを確認
-        // （実際の重複削除はpodman_image.rsで行われる）
         let temp_dir = TempDir::new().unwrap();
         let config_path = temp_dir.path().join("overcode.toml");
         
@@ -137,7 +119,6 @@ args = ["run"]
         
         let config = Config::load(&config_path).unwrap();
         
-        // 両方のイメージが同じであることを確認
         assert!(config.command.is_some());
         let command = config.command.unwrap();
         let test_image = command.test.unwrap().image;
@@ -148,7 +129,6 @@ args = ["run"]
 
     #[test]
     fn test_config_image_optional() {
-        // imageフィールドがオプショナルであることを確認
         let temp_dir = TempDir::new().unwrap();
         let config_path = temp_dir.path().join("overcode.toml");
         
@@ -161,7 +141,6 @@ args = ["test"]
         
         let config = Config::load(&config_path).unwrap();
         
-        // imageがNoneであることを確認
         assert!(config.command.is_some());
         let command = config.command.unwrap();
         assert!(command.test.is_some());
