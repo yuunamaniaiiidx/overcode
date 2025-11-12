@@ -7,7 +7,7 @@ mod tests {
     /// run.rsがconfigに期待する動作をテストする
     /// 
     /// run::process_run関数は以下の動作をconfigに期待している:
-    /// 1. Config::load_from_root(root_dir)がResult<Config>を返す
+    /// 1. Config::load(config_path)がResult<Config>を返す
     /// 2. config.commandがOption<CommandConfig>である
     /// 3. config.command.as_ref()が動作する
     /// 4. config.command.as_ref().and_then(|c| c.run.as_ref())が動作する
@@ -21,10 +21,12 @@ mod tests {
     /// 12. run_config.image.as_ref()が動作する
 
     #[test]
-    fn test_config_load_from_root_returns_result() {
-        // Config::load_from_rootがResult<Config>を返すことを確認
+    fn test_config_load_returns_result() {
+        // Config::loadがResult<Config>を返すことを確認
         let temp_dir = TempDir::new().unwrap();
-        let result = Config::load_from_root(temp_dir.path());
+        let config_path = temp_dir.path().join("overcode.toml");
+        fs::write(&config_path, "").unwrap();
+        let result = Config::load(&config_path);
         
         // Resultが返されることを確認
         assert!(result.is_ok());
@@ -43,7 +45,7 @@ args = ["test"]
 "#;
         fs::write(&config_path, toml_content).unwrap();
         
-        let config = Config::load_from_root(temp_dir.path()).unwrap();
+        let config = Config::load(&config_path).unwrap();
         
         // commandがOption<CommandConfig>であることを確認
         assert!(config.command.is_some());
@@ -62,7 +64,7 @@ args = ["test"]
 "#;
         fs::write(&config_path, toml_content).unwrap();
         
-        let config = Config::load_from_root(temp_dir.path()).unwrap();
+        let config = Config::load(&config_path).unwrap();
         
         // as_ref()が動作することを確認
         let command_ref = config.command.as_ref();
@@ -82,7 +84,7 @@ args = ["test"]
 "#;
         fs::write(&config_path, toml_content).unwrap();
         
-        let config = Config::load_from_root(temp_dir.path()).unwrap();
+        let config = Config::load(&config_path).unwrap();
         
         // and_thenが動作することを確認
         let run_config = config.command
@@ -105,7 +107,7 @@ args = ["test"]
 "#;
         fs::write(&config_path, toml_content).unwrap();
         
-        let config = Config::load_from_root(temp_dir.path()).unwrap();
+        let config = Config::load(&config_path).unwrap();
         
         // runがOption<RunTestConfig>であることを確認
         if let Some(command_config) = config.command.as_ref() {
@@ -128,7 +130,7 @@ args = ["test"]
 "#;
         fs::write(&config_path, toml_content).unwrap();
         
-        let config = Config::load_from_root(temp_dir.path()).unwrap();
+        let config = Config::load(&config_path).unwrap();
         
         // &RunTestConfigとして取得できることを確認
         let run_config: &crate::config::RunTestConfig = config.command
@@ -152,7 +154,7 @@ args = ["test"]
 "#;
         fs::write(&config_path, toml_content).unwrap();
         
-        let config = Config::load_from_root(temp_dir.path()).unwrap();
+        let config = Config::load(&config_path).unwrap();
         
         let run_config = config.command
             .as_ref()
@@ -177,7 +179,7 @@ args = ["test", "--manifest-path", "Cargo.toml"]
 "#;
         fs::write(&config_path, toml_content).unwrap();
         
-        let config = Config::load_from_root(temp_dir.path()).unwrap();
+        let config = Config::load(&config_path).unwrap();
         
         let run_config = config.command
             .as_ref()
@@ -204,7 +206,7 @@ args = ["test", "build"]
 "#;
         fs::write(&config_path, toml_content).unwrap();
         
-        let config = Config::load_from_root(temp_dir.path()).unwrap();
+        let config = Config::load(&config_path).unwrap();
         
         let run_config = config.command
             .as_ref()
@@ -232,7 +234,7 @@ args = ["test", "{root_dir}"]
 "#;
         fs::write(&config_path, toml_content).unwrap();
         
-        let config = Config::load_from_root(temp_dir.path()).unwrap();
+        let config = Config::load(&config_path).unwrap();
         
         let run_config = config.command
             .as_ref()
@@ -266,7 +268,7 @@ image = "docker.io/library/rust:latest"
 "#;
         fs::write(&config_path, toml_content).unwrap();
         
-        let config = Config::load_from_root(temp_dir.path()).unwrap();
+        let config = Config::load(&config_path).unwrap();
         
         let run_config = config.command
             .as_ref()
@@ -292,7 +294,7 @@ image = "docker.io/library/rust:latest"
 "#;
         fs::write(&config_path, toml_content).unwrap();
         
-        let config = Config::load_from_root(temp_dir.path()).unwrap();
+        let config = Config::load(&config_path).unwrap();
         
         let run_config = config.command
             .as_ref()
@@ -321,7 +323,7 @@ args = ["test"]
 "#;
         fs::write(&config_path, toml_content).unwrap();
         
-        let config = Config::load_from_root(temp_dir.path()).unwrap();
+        let config = Config::load(&config_path).unwrap();
         
         let run_config = config.command
             .as_ref()
@@ -337,9 +339,14 @@ args = ["test"]
     fn test_config_command_none_case() {
         // config.commandがNoneの場合の動作を確認
         let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("overcode.toml");
         
         // commandセクションがない場合
-        let config = Config::load_from_root(temp_dir.path()).unwrap();
+        let toml_content = r#"
+# commandセクションなし
+"#;
+        fs::write(&config_path, toml_content).unwrap();
+        let config = Config::load(&config_path).unwrap();
         
         // commandがNoneであることを確認
         assert!(config.command.is_none());
@@ -366,7 +373,7 @@ args = ["test"]
 "#;
         fs::write(&config_path, toml_content).unwrap();
         
-        let config = Config::load_from_root(temp_dir.path()).unwrap();
+        let config = Config::load(&config_path).unwrap();
         
         // commandはSomeだが、runはNoneであることを確認
         assert!(config.command.is_some());

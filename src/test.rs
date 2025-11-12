@@ -235,8 +235,11 @@ fn execute_test_command(
 }
 
 /// テスト処理を実行する
-pub fn process_test(root_dir: &Path) -> anyhow::Result<()> {
-    let config = Config::load_from_root(root_dir)?;
+pub fn process_test(config_path: &Path) -> anyhow::Result<()> {
+    let config = Config::load(config_path)?;
+    let root_dir = config_path
+        .parent()
+        .ok_or_else(|| anyhow::anyhow!("Config file has no parent directory"))?;
     
     // mock_patternsでマッチしたファイルを取得し、解決済みキーでHashMapに保存
     let mock_files = find_mock_matched_files(&config, root_dir)?;

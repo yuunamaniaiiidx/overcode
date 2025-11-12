@@ -87,8 +87,11 @@ fn execute_run_command(
 }
 
 /// 実行処理を実行する
-pub fn process_run(root_dir: &Path, extra_args: &[String]) -> anyhow::Result<()> {
-    let config = Config::load_from_root(root_dir)?;
+pub fn process_run(config_path: &Path, extra_args: &[String]) -> anyhow::Result<()> {
+    let config = Config::load(config_path)?;
+    let root_dir = config_path
+        .parent()
+        .ok_or_else(|| anyhow::anyhow!("Config file has no parent directory"))?;
     
     // command.runを取得
     let run_config = config.command

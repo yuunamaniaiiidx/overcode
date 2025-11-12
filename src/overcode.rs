@@ -12,17 +12,17 @@ pub fn main() -> anyhow::Result<()> {
         Command::Init => {
             crate::config::Config::init_config(&cli.root_dir)?;
             crate::podman_install::ensure_podman()?;
-            crate::podman_image::ensure_images(&cli.root_dir)?;
+            crate::podman_image::ensure_images(&cli.config_path)?;
         }
         Command::Test => {
             crate::config::Config::init_config(&cli.root_dir)?;
-            crate::podman_image::ensure_images(&cli.root_dir)?;
-            process_test(&cli.root_dir)?;
+            crate::podman_image::ensure_images(&cli.config_path)?;
+            process_test(&cli.config_path)?;
         }
         Command::Run => {
             crate::config::Config::init_config(&cli.root_dir)?;
-            crate::podman_image::ensure_images(&cli.root_dir)?;
-            process_run(&cli.root_dir, &cli.extra_args)?;
+            crate::podman_image::ensure_images(&cli.config_path)?;
+            process_run(&cli.config_path, &cli.extra_args)?;
         }
     }
 

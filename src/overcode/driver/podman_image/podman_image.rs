@@ -17,7 +17,7 @@ mod tests {
         fs::write(&config_path, toml_content).unwrap();
         
         // ensure_imagesを実行
-        let result = ensure_images(temp_dir.path());
+        let result = ensure_images(&config_path);
         
         // イメージが指定されていない場合は成功する
         assert!(result.is_ok());
@@ -40,7 +40,7 @@ args = ["test"]
         // ensure_imagesを実行
         // 注意: このテストは実際にpodmanコマンドを実行するため、
         // podmanがインストールされていない環境では失敗する可能性があります
-        let result = ensure_images(temp_dir.path());
+        let result = ensure_images(&config_path);
         
         // 結果は環境に依存するが、設定の読み込みは成功する
         // エラーメッセージに設定関連のエラーが含まれていないことを確認
@@ -72,7 +72,7 @@ args = ["run"]
         fs::write(&config_path, toml_content).unwrap();
         
         // 設定が正しく読み込まれることを確認
-        let config = Config::load_from_root(temp_dir.path()).unwrap();
+        let config = Config::load(&config_path).unwrap();
         // 新しい実装では、command.test.imageとcommand.run.imageからイメージを取得する
         // このテストは、commandセクションが正しく読み込まれることを確認する
         assert!(config.command.is_some());

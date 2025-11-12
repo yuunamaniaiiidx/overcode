@@ -57,22 +57,6 @@ impl Config {
         Ok(config)
     }
 
-    /// ルートディレクトリから設定ファイルを探して読み込む
-    pub fn load_from_root(root_dir: &Path) -> Result<Self> {
-        let config_path = root_dir.join("overcode.toml");
-        
-        if !config_path.exists() {
-            // 設定ファイルが存在しない場合は空の設定を返す
-            return Ok(Config {
-                driver_patterns: Vec::new(),
-                mock_patterns: Vec::new(),
-                command: None,
-            });
-        }
-        
-        Self::load(&config_path)
-    }
-
     /// 設定ファイルのテンプレート内容を返す
     fn get_template_content() -> &'static str {
         r#"# overcode.toml configuration file

@@ -7,15 +7,17 @@ mod tests {
     /// podman_image.rsがconfigに期待する動作をテストする
     /// 
     /// podman_image::ensure_images関数は以下の動作をconfigに期待している:
-    /// 1. Config::load_from_root(root_dir)がResult<Config>を返す
+    /// 1. Config::load(config_path)がResult<Config>を返す
     /// 2. config.command.test.imageとconfig.command.run.imageからイメージを取得できる
     /// 3. イメージが指定されていない場合は空のHashSetが返される
 
     #[test]
-    fn test_config_load_from_root_returns_result() {
-        // Config::load_from_rootがResult<Config>を返すことを確認
+    fn test_config_load_returns_result() {
+        // Config::loadがResult<Config>を返すことを確認
         let temp_dir = TempDir::new().unwrap();
-        let result = Config::load_from_root(temp_dir.path());
+        let config_path = temp_dir.path().join("overcode.toml");
+        fs::write(&config_path, "").unwrap();
+        let result = Config::load(&config_path);
         
         // Resultが返されることを確認
         assert!(result.is_ok());
@@ -35,7 +37,7 @@ args = ["test"]
 "#;
         fs::write(&config_path, toml_content).unwrap();
         
-        let config = Config::load_from_root(temp_dir.path()).unwrap();
+        let config = Config::load(&config_path).unwrap();
         
         // command.test.imageが存在することを確認
         assert!(config.command.is_some());
@@ -58,7 +60,7 @@ args = ["run"]
 "#;
         fs::write(&config_path, toml_content).unwrap();
         
-        let config = Config::load_from_root(temp_dir.path()).unwrap();
+        let config = Config::load(&config_path).unwrap();
         
         // command.run.imageが存在することを確認
         assert!(config.command.is_some());
@@ -72,10 +74,6 @@ args = ["run"]
         // commandセクションがない場合、イメージが取得できないことを確認
         let temp_dir = TempDir::new().unwrap();
         
-        // 設定ファイルが存在しない場合、commandはNone
-        let config = Config::load_from_root(temp_dir.path()).unwrap();
-        assert!(config.command.is_none());
-        
         // 明示的にcommandセクションがない場合
         let config_path = temp_dir.path().join("overcode.toml");
         let toml_content = r#"
@@ -83,7 +81,7 @@ args = ["run"]
 "#;
         fs::write(&config_path, toml_content).unwrap();
         
-        let config = Config::load_from_root(temp_dir.path()).unwrap();
+        let config = Config::load(&config_path).unwrap();
         assert!(config.command.is_none());
     }
 
@@ -106,7 +104,7 @@ args = ["run"]
 "#;
         fs::write(&config_path, toml_content).unwrap();
         
-        let config = Config::load_from_root(temp_dir.path()).unwrap();
+        let config = Config::load(&config_path).unwrap();
         
         // 両方のイメージが存在することを確認
         assert!(config.command.is_some());
@@ -137,7 +135,7 @@ args = ["run"]
 "#;
         fs::write(&config_path, toml_content).unwrap();
         
-        let config = Config::load_from_root(temp_dir.path()).unwrap();
+        let config = Config::load(&config_path).unwrap();
         
         // 両方のイメージが同じであることを確認
         assert!(config.command.is_some());
@@ -161,7 +159,7 @@ args = ["test"]
 "#;
         fs::write(&config_path, toml_content).unwrap();
         
-        let config = Config::load_from_root(temp_dir.path()).unwrap();
+        let config = Config::load(&config_path).unwrap();
         
         // imageがNoneであることを確認
         assert!(config.command.is_some());

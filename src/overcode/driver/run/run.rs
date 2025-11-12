@@ -8,14 +8,15 @@ mod tests {
     #[test]
     fn test_process_run_without_config() {
         let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("overcode.toml");
         
         // 設定ファイルが存在しない場合
-        let result = process_run(temp_dir.path(), &[]);
+        let result = process_run(&config_path, &[]);
         
-        // command.runセクションが見つからないため、エラーが返されるはず
+        // 設定ファイルが見つからないため、エラーが返されるはず
         assert!(result.is_err());
         let error_msg = result.unwrap_err().to_string();
-        assert!(error_msg.contains("command.run") || error_msg.contains("not found"));
+        assert!(error_msg.contains("not found") || error_msg.contains("Failed to read"));
     }
 
     #[test]
@@ -30,7 +31,7 @@ file = ".gitignore"
 "#;
         fs::write(&config_path, toml_content).unwrap();
         
-        let result = process_run(temp_dir.path(), &[]);
+        let result = process_run(&config_path, &[]);
         
         // command.runセクションが見つからないため、エラーが返される
         assert!(result.is_err());
@@ -51,7 +52,7 @@ args = ["hello"]
         
         // 設定が正しく読み込まれることを確認
         // 実際のコマンド実行は環境に依存するため、設定の読み込みが成功することを確認
-        let result = process_run(temp_dir.path(), &[]);
+        let result = process_run(&config_path, &[]);
         // コマンド実行は環境に依存するが、設定の読み込みは成功する
         // エラーメッセージに設定関連のエラーが含まれていないことを確認
         if let Err(e) = &result {
@@ -79,7 +80,7 @@ args = ["hello"]
         let extra_args = vec!["world".to_string(), "test".to_string()];
         
         // 関数が呼び出し可能であることを確認
-        let result = process_run(temp_dir.path(), &extra_args);
+        let result = process_run(&config_path, &extra_args);
         // コマンド実行は環境に依存するが、設定の読み込みは成功する
         // エラーメッセージに設定関連のエラーが含まれていないことを確認
         if let Err(e) = &result {

@@ -43,7 +43,7 @@ mod tests {
     }
 
     #[test]
-    fn test_config_load_from_root_with_existing_file() {
+    fn test_config_load_with_existing_file() {
         let temp_dir = TempDir::new().unwrap();
         let config_path = temp_dir.path().join("overcode.toml");
         
@@ -55,8 +55,8 @@ testcase = "test"
 "#;
         fs::write(&config_path, toml_content).unwrap();
         
-        // load_from_rootを実行
-        let result = Config::load_from_root(temp_dir.path());
+        // loadを実行
+        let result = Config::load(&config_path);
         assert!(result.is_ok());
         
         let config = result.unwrap();
@@ -64,18 +64,13 @@ testcase = "test"
     }
 
     #[test]
-    fn test_config_load_from_root_without_file() {
+    fn test_config_load_without_file() {
         let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("overcode.toml");
         
-        // 設定ファイルが存在しない場合
-        let result = Config::load_from_root(temp_dir.path());
-        assert!(result.is_ok());
-        
-        // 空の設定が返されることを確認
-        let config = result.unwrap();
-        assert!(config.driver_patterns.is_empty());
-        assert!(config.mock_patterns.is_empty());
-        assert!(config.command.is_none());
+        // 設定ファイルが存在しない場合、エラーが返されることを確認
+        let result = Config::load(&config_path);
+        assert!(result.is_err());
     }
 
 }

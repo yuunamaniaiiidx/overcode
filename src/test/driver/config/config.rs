@@ -7,7 +7,7 @@ mod tests {
     /// test.rsがconfigに期待する動作をテストする
     /// 
     /// test::process_test関数とfind_driver_matched_files関数は以下の動作をconfigに期待している:
-    /// 1. Config::load_from_root(root_dir)がResult<Config>を返す
+    /// 1. Config::load(config_path)がResult<Config>を返す
     /// 2. config.driver_patternsがVec<MappingEntry>である
     /// 3. config.driver_patternsをイテレートできる
     /// 4. mapping.patternがStringである
@@ -25,10 +25,12 @@ mod tests {
     /// 16. run_test.image.as_ref()が動作する
 
     #[test]
-    fn test_config_load_from_root_returns_result() {
-        // Config::load_from_rootがResult<Config>を返すことを確認
+    fn test_config_load_returns_result() {
+        // Config::loadがResult<Config>を返すことを確認
         let temp_dir = TempDir::new().unwrap();
-        let result = Config::load_from_root(temp_dir.path());
+        let config_path = temp_dir.path().join("overcode.toml");
+        fs::write(&config_path, "").unwrap();
+        let result = Config::load(&config_path);
         
         // Resultが返されることを確認
         assert!(result.is_ok());
@@ -47,7 +49,7 @@ testcase = "$1/$2.$3"
 "#;
         fs::write(&config_path, toml_content).unwrap();
         
-        let config = Config::load_from_root(temp_dir.path()).unwrap();
+        let config = Config::load(&config_path).unwrap();
         
         // driver_patternsがVec<MappingEntry>であることを確認
         assert_eq!(config.driver_patterns.len(), 1);
@@ -70,7 +72,7 @@ testcase = "$1/$2.$3"
 "#;
         fs::write(&config_path, toml_content).unwrap();
         
-        let config = Config::load_from_root(temp_dir.path()).unwrap();
+        let config = Config::load(&config_path).unwrap();
         
         // イテレートできることを確認
         let mut count = 0;
@@ -93,7 +95,7 @@ testcase = "$1/$2.$3"
 "#;
         fs::write(&config_path, toml_content).unwrap();
         
-        let config = Config::load_from_root(temp_dir.path()).unwrap();
+        let config = Config::load(&config_path).unwrap();
         
         // patternがStringであることを確認
         assert_eq!(config.driver_patterns[0].pattern, "(.+)/(.+)/driver/.+.(.+)");
@@ -113,7 +115,7 @@ args = ["test"]
 "#;
         fs::write(&config_path, toml_content).unwrap();
         
-        let config = Config::load_from_root(temp_dir.path()).unwrap();
+        let config = Config::load(&config_path).unwrap();
         
         // commandがOption<CommandConfig>であることを確認
         assert!(config.command.is_some());
@@ -132,7 +134,7 @@ args = ["test"]
 "#;
         fs::write(&config_path, toml_content).unwrap();
         
-        let config = Config::load_from_root(temp_dir.path()).unwrap();
+        let config = Config::load(&config_path).unwrap();
         
         // and_thenが動作することを確認
         let test_config = config.command
@@ -155,7 +157,7 @@ args = ["test"]
 "#;
         fs::write(&config_path, toml_content).unwrap();
         
-        let config = Config::load_from_root(temp_dir.path()).unwrap();
+        let config = Config::load(&config_path).unwrap();
         
         // test.rsの実際の使用パターン: command.testを使用
         let run_test: &crate::config::RunTestConfig = config.command
@@ -179,7 +181,7 @@ args = ["test"]
 "#;
         fs::write(&config_path, toml_content).unwrap();
         
-        let config = Config::load_from_root(temp_dir.path()).unwrap();
+        let config = Config::load(&config_path).unwrap();
         
         let run_test = config.command
             .as_ref()
@@ -204,7 +206,7 @@ args = ["test", "--manifest-path", "Cargo.toml"]
 "#;
         fs::write(&config_path, toml_content).unwrap();
         
-        let config = Config::load_from_root(temp_dir.path()).unwrap();
+        let config = Config::load(&config_path).unwrap();
         
         let run_test = config.command
             .as_ref()
@@ -231,7 +233,7 @@ args = ["test", "build"]
 "#;
         fs::write(&config_path, toml_content).unwrap();
         
-        let config = Config::load_from_root(temp_dir.path()).unwrap();
+        let config = Config::load(&config_path).unwrap();
         
         let run_test = config.command
             .as_ref()
@@ -259,7 +261,7 @@ args = ["test", "{driver_file}", "{root_dir}"]
 "#;
         fs::write(&config_path, toml_content).unwrap();
         
-        let config = Config::load_from_root(temp_dir.path()).unwrap();
+        let config = Config::load(&config_path).unwrap();
         
         let run_test = config.command
             .as_ref()
@@ -299,7 +301,7 @@ replace_rule = [
 "#;
         fs::write(&config_path, toml_content).unwrap();
         
-        let config = Config::load_from_root(temp_dir.path()).unwrap();
+        let config = Config::load(&config_path).unwrap();
         
         let run_test = config.command
             .as_ref()
@@ -327,7 +329,7 @@ replace_rule = [
 "#;
         fs::write(&config_path, toml_content).unwrap();
         
-        let config = Config::load_from_root(temp_dir.path()).unwrap();
+        let config = Config::load(&config_path).unwrap();
         
         let run_test = config.command
             .as_ref()
@@ -358,7 +360,7 @@ replace_rule = [
 "#;
         fs::write(&config_path, toml_content).unwrap();
         
-        let config = Config::load_from_root(temp_dir.path()).unwrap();
+        let config = Config::load(&config_path).unwrap();
         
         let run_test = config.command
             .as_ref()
@@ -387,7 +389,7 @@ image = "docker.io/library/rust:latest"
 "#;
         fs::write(&config_path, toml_content).unwrap();
         
-        let config = Config::load_from_root(temp_dir.path()).unwrap();
+        let config = Config::load(&config_path).unwrap();
         
         let run_test = config.command
             .as_ref()
@@ -413,7 +415,7 @@ image = "docker.io/library/rust:latest"
 "#;
         fs::write(&config_path, toml_content).unwrap();
         
-        let config = Config::load_from_root(temp_dir.path()).unwrap();
+        let config = Config::load(&config_path).unwrap();
         
         let run_test = config.command
             .as_ref()
@@ -442,7 +444,7 @@ args = ["test"]
 "#;
         fs::write(&config_path, toml_content).unwrap();
         
-        let config = Config::load_from_root(temp_dir.path()).unwrap();
+        let config = Config::load(&config_path).unwrap();
         
         let run_test = config.command
             .as_ref()
@@ -469,7 +471,7 @@ replace_rule = [
 "#;
         fs::write(&config_path, toml_content).unwrap();
         
-        let config = Config::load_from_root(temp_dir.path()).unwrap();
+        let config = Config::load(&config_path).unwrap();
         
         let run_test = config.command
             .as_ref()
@@ -503,7 +505,7 @@ args = ["test", "command_test"]
 "#;
         fs::write(&config_path, toml_content).unwrap();
         
-        let config = Config::load_from_root(temp_dir.path()).unwrap();
+        let config = Config::load(&config_path).unwrap();
         
         // command.testが使用されることを確認
         let run_test = config.command
@@ -519,9 +521,14 @@ args = ["test", "command_test"]
     fn test_config_no_test_config_error_case() {
         // test.rsの実際の使用パターン: command.testがない場合
         let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("overcode.toml");
         
-        // 設定ファイルが存在しない場合
-        let config = Config::load_from_root(temp_dir.path()).unwrap();
+        // command.testがない設定ファイルを作成
+        let toml_content = r#"
+# command.testがない
+"#;
+        fs::write(&config_path, toml_content).unwrap();
+        let config = Config::load(&config_path).unwrap();
         
         // command.testがないことを確認
         let run_test = config.command
@@ -545,7 +552,7 @@ mount_path = "$1/$2.$3"
 "#;
         fs::write(&config_path, toml_content).unwrap();
         
-        let config = Config::load_from_root(temp_dir.path()).unwrap();
+        let config = Config::load(&config_path).unwrap();
         
         // mock_patternsがVec<MappingEntry>であることを確認
         assert_eq!(config.mock_patterns.len(), 1);
@@ -570,7 +577,7 @@ mount_path = "$1/$2.$3"
 "#;
         fs::write(&config_path, toml_content).unwrap();
         
-        let config = Config::load_from_root(temp_dir.path()).unwrap();
+        let config = Config::load(&config_path).unwrap();
         
         // イテレートできることを確認
         let mut count = 0;
@@ -594,7 +601,7 @@ mount_path = "$1/$2.$3"
 "#;
         fs::write(&config_path, toml_content).unwrap();
         
-        let config = Config::load_from_root(temp_dir.path()).unwrap();
+        let config = Config::load(&config_path).unwrap();
         
         // testcaseがStringであることを確認
         assert_eq!(config.mock_patterns[0].testcase, "$1/$2.$3");
@@ -616,7 +623,7 @@ mount_path = "$1/$2.$3"
 "#;
         fs::write(&config_path, toml_content).unwrap();
         
-        let config = Config::load_from_root(temp_dir.path()).unwrap();
+        let config = Config::load(&config_path).unwrap();
         
         // mount_pathがOption<String>であることを確認
         assert!(config.mock_patterns[0].mount_path.is_some());
@@ -637,7 +644,7 @@ testcase = "$1/$2.$3"
 "#;
         fs::write(&config_path, toml_content).unwrap();
         
-        let config = Config::load_from_root(temp_dir.path()).unwrap();
+        let config = Config::load(&config_path).unwrap();
         
         // mount_pathがNoneであることを確認
         assert!(config.mock_patterns[0].mount_path.is_none());
@@ -657,7 +664,7 @@ mount_path = "$1/$2.$3"
 "#;
         fs::write(&config_path, toml_content).unwrap();
         
-        let config = Config::load_from_root(temp_dir.path()).unwrap();
+        let config = Config::load(&config_path).unwrap();
         
         // as_deref()が動作することを確認（test.rsの実際の使用パターンを再現）
         for mapping in &config.mock_patterns {
@@ -681,7 +688,7 @@ mount_path = "$1/$2.$3"
 "#;
         fs::write(&config_path, toml_content).unwrap();
         
-        let config = Config::load_from_root(temp_dir.path()).unwrap();
+        let config = Config::load(&config_path).unwrap();
         
         // test.rsと同じパターンでmock_patternsをコンパイルできることを確認
         use regex::Regex;

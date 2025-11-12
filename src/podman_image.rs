@@ -19,8 +19,8 @@ fn image_exists(image: &str) -> bool {
 }
 
 /// 設定ファイルからイメージリストを読み込み、存在しないものはダウンロードする
-pub fn ensure_images(root_dir: &Path) -> Result<()> {
-    let config = config::Config::load_from_root(root_dir)?;
+pub fn ensure_images(config_path: &Path) -> Result<()> {
+    let config = config::Config::load(config_path)?;
     
     // command.test.imageとcommand.run.imageからイメージを収集
     let mut images = HashSet::new();

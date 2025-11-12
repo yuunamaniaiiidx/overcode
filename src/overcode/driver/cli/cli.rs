@@ -39,12 +39,14 @@ mod tests {
         let cli = Cli {
             command: Command::Init,
             root_dir: PathBuf::from("/tmp"),
+            config_path: PathBuf::from("/tmp/overcode.toml"),
             extra_args: vec![],
         };
         
         // 構造体のフィールドが正しく設定されていることを確認
         assert_eq!(cli.command, Command::Init);
         assert_eq!(cli.root_dir, PathBuf::from("/tmp"));
+        assert_eq!(cli.config_path, PathBuf::from("/tmp/overcode.toml"));
         assert_eq!(cli.extra_args.len(), 0);
         
         // Debugトレイトのテスト（フォーマットが成功することを確認）

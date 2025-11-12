@@ -8,15 +8,15 @@ mod tests {
     #[test]
     fn test_process_test_without_config() {
         let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("overcode.toml");
         
         // 設定ファイルが存在しない場合
-        let result = process_test(temp_dir.path());
+        let result = process_test(&config_path);
         
-        // command.testセクションが見つからないため、エラーが返されるはず
+        // 設定ファイルが見つからないため、エラーが返されるはず
         assert!(result.is_err());
         let error_msg = result.unwrap_err().to_string();
-        assert!(error_msg.contains("command.test") && 
-                error_msg.contains("not found"));
+        assert!(error_msg.contains("not found") || error_msg.contains("Failed to read"));
     }
 
     #[test]
@@ -31,7 +31,7 @@ file = ".gitignore"
 "#;
         fs::write(&config_path, toml_content).unwrap();
         
-        let result = process_test(temp_dir.path());
+        let result = process_test(&config_path);
         
         // command.testセクションが見つからないため、エラーが返される
         assert!(result.is_err());
@@ -47,10 +47,11 @@ file = ".gitignore"
 [command.test]
 command = "cargo"
 args = ["test"]
+image = "docker.io/library/rust:latest"
 "#;
         fs::write(&config_path, toml_content).unwrap();
         
-        let result = process_test(temp_dir.path());
+        let result = process_test(&config_path);
         
         // driver_filesが空の場合、警告は出るが成功する
         assert!(result.is_ok());
@@ -70,12 +71,13 @@ testcase = "$1/$2.$3"
 [command.test]
 command = "cargo"
 args = ["test", "{driver_file}"]
+image = "docker.io/library/rust:latest"
 "#;
         fs::write(&config_path, toml_content).unwrap();
         
         // driver_filesが空の場合、警告は出るが成功する
         // 実際のコマンド実行は環境に依存するため、設定の読み込みが正しく行われることを確認
-        let result = process_test(temp_dir.path());
+        let result = process_test(&config_path);
         // driver_filesが空の場合は成功を返す
         assert!(result.is_ok());
     }
