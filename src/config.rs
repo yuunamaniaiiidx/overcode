@@ -16,9 +16,6 @@ pub struct Config {
     #[serde(default)]
     pub images: Vec<ImageEntry>,
     pub command: Option<CommandConfig>,
-    // 後方互換性のため、run_testも残す
-    #[serde(rename = "run_test")]
-    pub run_test: Option<RunTestConfig>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -198,7 +195,6 @@ impl Config {
                 mock_patterns: Vec::new(),
                 images: Vec::new(),
                 command: None,
-                run_test: None,
             });
         }
         

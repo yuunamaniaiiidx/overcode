@@ -15,18 +15,16 @@ mod tests {
     /// 6. mapping.patternがStringである
     /// 7. config.commandがOption<CommandConfig>である
     /// 8. config.command.as_ref().and_then(|c| c.test.as_ref())が動作する
-    /// 9. config.run_testがOption<RunTestConfig>である
-    /// 10. config.run_test.as_ref()が動作する
-    /// 11. run_testが&RunTestConfigとして取得できる
-    /// 12. run_test.commandがStringである
-    /// 13. run_test.argsがVec<String>である
-    /// 14. run_test.args.iter()が動作する
-    /// 15. run_test.args.iter().map(...)が動作する
-    /// 16. run_test.replace_ruleがVec<ReplaceRule>である
-    /// 17. run_test.replace_rule.iter()が動作する
-    /// 18. rule.patternとrule.replaceがStringである
-    /// 19. run_test.imageがOption<String>である
-    /// 20. run_test.image.as_ref()が動作する
+    /// 9. run_testが&RunTestConfigとして取得できる
+    /// 10. run_test.commandがStringである
+    /// 11. run_test.argsがVec<String>である
+    /// 12. run_test.args.iter()が動作する
+    /// 13. run_test.args.iter().map(...)が動作する
+    /// 14. run_test.replace_ruleがVec<ReplaceRule>である
+    /// 15. run_test.replace_rule.iter()が動作する
+    /// 16. rule.patternとrule.replaceがStringである
+    /// 17. run_test.imageがOption<String>である
+    /// 18. run_test.image.as_ref()が動作する
 
     #[test]
     fn test_config_load_from_root_returns_result() {
@@ -192,45 +190,6 @@ args = ["test"]
     }
 
     #[test]
-    fn test_config_run_test_is_option_run_test_config() {
-        // config.run_testがOption<RunTestConfig>であることを確認
-        let temp_dir = TempDir::new().unwrap();
-        let config_path = temp_dir.path().join("overcode.toml");
-        
-        let toml_content = r#"
-[run_test]
-command = "cargo"
-args = ["test"]
-"#;
-        fs::write(&config_path, toml_content).unwrap();
-        
-        let config = Config::load_from_root(temp_dir.path()).unwrap();
-        
-        // run_testがOption<RunTestConfig>であることを確認
-        assert!(config.run_test.is_some());
-    }
-
-    #[test]
-    fn test_config_run_test_as_ref_works() {
-        // config.run_test.as_ref()が動作することを確認
-        let temp_dir = TempDir::new().unwrap();
-        let config_path = temp_dir.path().join("overcode.toml");
-        
-        let toml_content = r#"
-[run_test]
-command = "cargo"
-args = ["test"]
-"#;
-        fs::write(&config_path, toml_content).unwrap();
-        
-        let config = Config::load_from_root(temp_dir.path()).unwrap();
-        
-        // as_ref()が動作することを確認
-        let run_test_ref = config.run_test.as_ref();
-        assert!(run_test_ref.is_some());
-    }
-
-    #[test]
     fn test_run_test_can_be_obtained_as_ref() {
         // run_testが&RunTestConfigとして取得できることを確認
         let temp_dir = TempDir::new().unwrap();
@@ -245,11 +204,10 @@ args = ["test"]
         
         let config = Config::load_from_root(temp_dir.path()).unwrap();
         
-        // test.rsの実際の使用パターン: command.testを優先し、なければrun_testを使用
+        // test.rsの実際の使用パターン: command.testを使用
         let run_test: &crate::config::RunTestConfig = config.command
             .as_ref()
             .and_then(|c| c.test.as_ref())
-            .or_else(|| config.run_test.as_ref())
             .expect("run_test should exist");
         
         assert_eq!(run_test.command, "cargo");
@@ -589,10 +547,6 @@ replace_rule = [
 [command.test]
 command = "cargo"
 args = ["test", "command_test"]
-
-[run_test]
-command = "cargo"
-args = ["test", "run_test"]
 "#;
         fs::write(&config_path, toml_content).unwrap();
         
