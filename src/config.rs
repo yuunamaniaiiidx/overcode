@@ -57,8 +57,29 @@ impl Config {
     }
 
     fn get_template_content() -> &'static str {
-        r#"# overcode.toml configuration file
-"#
+        r#"# overcode.toml
+[[driver_patterns]]
+pattern = "src/([^/]+)/driver/([^/]+)/([^/]+)\\.rs"
+testcase = "$2_$3"
+
+[[mock_patterns]]
+pattern = "src/([^/]+)/mock/([^/]+)/([^/]+)\\.rs"
+testcase = "$1_$3"
+mount_path = "src/$1.rs"
+
+[command.test]
+image = "docker.io/library/rust:latest"
+command = "cargo"
+args = ["test", "--manifest-path", "Cargo.toml", "{driver_file}"]
+
+replace_rule = [
+  { pattern = "src/([^/]+)/driver/([^/]+)/([^/]+)\\.rs", replace = "$1::driver_$2_$3" },
+]
+
+[command.run]
+image = "docker.io/library/rust:latest"
+command = "cargo"
+args = ["run", "--manifest-path", "Cargo.toml"]"#
     }
 
     pub fn init_config(root_dir: &Path) -> Result<()> {
